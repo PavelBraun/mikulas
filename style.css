@@ -42,22 +42,39 @@ body {
 #welcomeScreen .content,
 #goodbyeScreen .content {
     position: absolute;
-    bottom: 150px;
+    bottom: 0px;
     left: 50%;
     transform: translateX(-50%);
 }
 
 h1 {
     font-size: 48px;
-    margin-bottom: 30px;
+    margin-bottom: 0px;
     color: white;
+    text-shadow: 1px 1px black;
 }
 
 /* Tlačítka */
 .btn-large {
     font-family: Tahoma, sans-serif;
+    font-size: 6em;
+    padding: 40px 150px;
+    margin: 20px 10px;
+    border: none;
+    border-radius: 40px;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    text-shadow: 1px 1px black;
+    cursor: pointer;
+    /* box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); */
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+
+.btn-large.continue {
+    font-family: Tahoma, sans-serif;
     font-size: 24px;
-    padding: 20px 50px;
+    padding: 20px 60px;
     margin: 20px 10px;
     border: none;
     border-radius: 15px;
@@ -403,6 +420,7 @@ h1 {
     padding: 5px;
     border: 1px solid #ddd;
     text-align: left;
+    font-size: 26px;
 }
 
 .admin-table th {
@@ -424,7 +442,7 @@ h1 {
 .admin-table th.sortable::after {
     content: ' ⇅';
     opacity: 0.3;
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .admin-table th.sort-asc::after {

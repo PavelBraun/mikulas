@@ -51,14 +51,14 @@
             <div class="parchment">
                 <div id="letterText" class="letter-text"></div>
             </div>
-            <button id="endLetterButton" onclick="app.goToGoodbye()" class="btn-large">Dokončit</button>
+            <button id="endLetterButton" onclick="app.goToGoodbye()" class="btn-large continue">Dokončit</button>
         </div>
     </div>
 
     <!-- Rozloučení -->
     <div id="goodbyeScreen" class="screen" style="background-image: url('images/bg-goodbye.png')">
         <div class="content">
-            <h1>Děkujeme a těšíme se na další setkání!</h1>
+            <h1>Děkujeme,<br>a těšíme se na další setkání!</h1>
             <button onclick="app.restart()" class="btn-large">Začít znovu</button>
         </div>
     </div>
@@ -69,9 +69,9 @@
         <button class="close-admin-btn" onclick="app.closeAdmin()" title="Zavřít administraci">✕</button>
         <div class="content">
             <h1>Administrace</h1>
-            <div id="dropZone" class="file-drop-zone"><p>Přetáhněte sem zálohu (.json nebo .csv)</p></div>
-            <button onclick="app.exportBackup()" class="btn-large">💾 Vytvořit zálohu</button>
-            <button id="resetDataBtn" class="btn-large btn-danger">🗑️ Vymazat data a začít znovu</button>
+            <div id="dropZone" class="file-drop-zone"><p>Přetáhněte sem zálohu (.json nebo .csv)</p><input type="file" id="dropZoneFileInput" style="display:none" accept=".json,.csv"></div>
+            <button onclick="app.exportBackup()" class="btn-large continue">💾 Zálohovat</button>
+            <button id="resetDataBtn" class="btn-large continue btn-danger">🗑️ Začít znovu</button>
             <div class="admin-tabs">
                 <button class="admin-tab-btn" id="tab-names" onclick="app.switchAdminTab('names')">Jména</button>
                 <button class="admin-tab-btn" id="tab-jokes" onclick="app.switchAdminTab('jokes')">Vtipy</button>
@@ -80,7 +80,7 @@
             <div id="adminTabContent">
                 <!-- Dynamicky generováno JS -->
             </div>
-            <button onclick="app.closeAdmin()" class="btn-large">Zavřít administraci</button>
+            <button onclick="app.closeAdmin()" class="btn-large continue">Zavřít administraci</button>
         </div>
     </div>
 
@@ -91,8 +91,8 @@
             <label id="editModalLabel">Poznámka:</label>
             <textarea id="modalEditText"></textarea>
             <div class="modal-buttons">
-                <button class="btn-large" onclick="app.saveEditModal()">💾 Uložit</button>
-                <button class="btn-large" onclick="app.closeModal()">❌ Zrušit</button>
+                <button class="btn-large continue" onclick="app.saveEditModal()">💾 Uložit</button>
+                <button class="btn-large continue" onclick="app.closeModal()">❌ Zrušit</button>
             </div>
         </div>
     </div>
@@ -103,8 +103,8 @@
             <h2 id="importModalTitle">Importovat CSV</h2>
             <input type="file" id="importFileInput" accept=".csv">
             <div class="modal-buttons">
-                <button class="btn-large" onclick="app.importCSVModal()">📂 Importovat</button>
-                <button class="btn-large" onclick="app.closeImportModal()">❌ Zrušit</button>
+                <button class="btn-large continue" onclick="app.importCSVModal()">📂 Importovat</button>
+                <button class="btn-large continue" onclick="app.closeImportModal()">❌ Zrušit</button>
             </div>
             <div id="importTemplateLink"></div>
         </div>

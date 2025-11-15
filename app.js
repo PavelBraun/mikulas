@@ -8,14 +8,13 @@ const app = {
     },
     exportNames() {
         const data = this.loadData();
-        const rows = ['PIN,Jmeno,Text dopisu'];
+        const rows = ['PIN,Osloveni,Text dopisu'];
         data.children.forEach(child => {
             const pin = child.pin;
             const name = child.name.replace(/"/g, '""');
             let textDopisu = (child.text ? child.text.replace(/"/g, '""') : '');
             textDopisu = textDopisu.replace(/\r?\n/g, '<br>');
             const finalText = `Ahoj ${child.name},<br><br>${textDopisu}<br>`;
-            console.log(`Export dopisu pro ${child.name}:`, finalText);
             rows.push(`${pin},"${name}","${finalText}"`);
         });
         const csv = '\uFEFF' + rows.join('\r\n');
@@ -24,7 +23,6 @@ const app = {
         const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
         const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
         const filename = `${dateStr}_Mikulas_jmena_${timeStr}.csv`;
-        console.log('ExportNames filename:', filename);
         this.downloadCSV(csv, filename);
     },
     closeAdmin() {
@@ -38,7 +36,7 @@ const app = {
         const pad = n => n.toString().padStart(2, '0');
         const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
         const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-        const filename = `${dateStr}_Mikulas_jmena_${timeStr}.json`;
+    const filename = `${dateStr}_Mikulas_zaloha_${timeStr}.json`;
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = filename;
@@ -585,7 +583,6 @@ const app = {
     renderAdminTab() {
         const container = document.getElementById('adminTabContent');
         if (this.adminTab === 'names') {
-            // ...původní tabulka dětí...
             container.innerHTML = `<div class="admin-controls">
                 <button onclick="app.addChild()" class="btn-small">➕ Přidat dítě</button>
                 <button onclick="app.exportNames()" class="btn-small">💾 Exportovat jména</button>
@@ -594,14 +591,17 @@ const app = {
             <table class="admin-table" id="adminTable">
                 <thead>
                     <tr>
-                        <th>PIN</th>
-                        <th>Jméno</th>
-                        <th>Akce</th>
+                        <th class="sortable" id="sort-pin" style="width:75px;">PIN</th>
+                        <th class="sortable" id="sort-name">Osloveni</th>
+                        <th style="width:60px;">Akce</th>
                     </tr>
                 </thead>
                 <tbody id="adminTableBody"></tbody>
             </table>`;
             this.renderAdminTable();
+            // Řazení tabulky kliknutím na hlavičku
+            document.getElementById('sort-pin').addEventListener('click', () => app.sortAdminTable('pin'));
+            document.getElementById('sort-name').addEventListener('click', () => app.sortAdminTable('name'));
         } else if (this.adminTab === 'jokes') {
             container.innerHTML = `<div class="admin-controls">
                 <button onclick="app.addJoke()" class="btn-small">➕ Přidat vtip</button>
@@ -643,18 +643,44 @@ const app = {
         if (!tbody) return; // Element neexistuje, pokud není aktivní tab 'names'
         tbody.innerHTML = '';
         const data = this.loadData();
-        data.children.forEach((child, idx) => {
-            tbody.innerHTML += `<tr><td>${child.pin}</td><td>${child.name}</td><td class="actions">
-                <button onclick="app.editChild(${idx})" class="btn-small">✏️</button>
-                <button class="btn-small btn-danger" data-idx="${idx}" data-confirm="0">🗑️</button>
-            </td></tr>`;
+        let children = data.children.slice();
+        // Řazení podle sortColumn
+        if (this.sortColumn) {
+            children.sort((a, b) => {
+                let valA = this.sortColumn === 'pin' ? a.pin : a.name.toLowerCase();
+                let valB = this.sortColumn === 'pin' ? b.pin : b.name.toLowerCase();
+                if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        children.forEach((child, idx) => {
+            // Sestavíme text pro sloupec Osloveni
+            let text = child.text || '';
+            // Odstraníme HTML tagy, pokud jsou
+            text = text.replace(/<[^>]*>/g, '').replace(/\r?\n/g, ' ');
+            let osloveni = `Ahoj ${child.name}, ${text}`;
+            tbody.innerHTML += `<tr>
+                <td style="width:75px; font-size:50px;">${child.pin}</td>
+                <td class="osloveni-cell" data-idx="${idx}">${osloveni}</td>
+                <td class="actions" style="width:50px; text-align:center;">
+                    <button class="btn-small btn-danger" data-idx="${idx}" data-confirm="0">🗑️</button>
+                </td>
+            </tr>`;
+        });
+        // Double-click na jméno otevře editaci
+        Array.from(tbody.querySelectorAll('.osloveni-cell')).forEach(cell => {
+            cell.addEventListener('dblclick', function(e) {
+                const idx = parseInt(cell.getAttribute('data-idx'));
+                app.editChild(idx);
+            });
         });
         // Potvrzovací logika pro mazání jména
         Array.from(tbody.querySelectorAll('.btn-danger')).forEach(btn => {
             btn.addEventListener('click', function(e) {
                 const idx = parseInt(btn.getAttribute('data-idx'));
                 if (btn.getAttribute('data-confirm') === '0') {
-                    btn.textContent = 'Opravdu smazat?';
+                    btn.textContent = '✅';
                     btn.setAttribute('data-confirm', '1');
                     btn.classList.add('confirm-delete');
                     setTimeout(() => {
@@ -669,21 +695,40 @@ const app = {
         });
     },
 
+    sortAdminTable(column) {
+        if (this.sortColumn === column) {
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortColumn = column;
+            this.sortDirection = 'asc';
+        }
+        this.renderAdminTable();
+    },
+
     renderJokesTable() {
         const tbody = document.getElementById('jokesTableBody');
         tbody.innerHTML = '';
         this.jokes.forEach((joke, idx) => {
-            tbody.innerHTML += `<tr><td>${joke}</td><td class="actions">
-                <button onclick="app.editJoke(${idx})" class="btn-small">✏️</button>
-                <button class="btn-small btn-danger" data-idx="${idx}" data-confirm="0">🗑️</button>
-            </td></tr>`;
+            tbody.innerHTML += `<tr>
+                <td class="joke-cell" data-idx="${idx}">${joke}</td>
+                <td class="actions">
+                    <button class="btn-small btn-danger" data-idx="${idx}" data-confirm="0">🗑️</button>
+                </td>
+            </tr>`;
+        });
+        // Double-click na vtip otevře editaci
+        Array.from(tbody.querySelectorAll('.joke-cell')).forEach(cell => {
+            cell.addEventListener('dblclick', function(e) {
+                const idx = parseInt(cell.getAttribute('data-idx'));
+                app.editJoke(idx);
+            });
         });
         // Potvrzovací logika pro mazání vtipu
         Array.from(tbody.querySelectorAll('.btn-danger')).forEach(btn => {
             btn.addEventListener('click', function(e) {
                 const idx = parseInt(btn.getAttribute('data-idx'));
                 if (btn.getAttribute('data-confirm') === '0') {
-                    btn.textContent = 'Opravdu smazat?';
+                    btn.textContent = '✅';
                     btn.setAttribute('data-confirm', '1');
                     btn.classList.add('confirm-delete');
                     setTimeout(() => {
@@ -702,17 +747,26 @@ const app = {
         const tbody = document.getElementById('phrasesTableBody');
         tbody.innerHTML = '';
         this.fortuneCookies.forEach((phrase, idx) => {
-            tbody.innerHTML += `<tr><td>${phrase}</td><td class="actions">
-                <button onclick="app.editPhrase(${idx})" class="btn-small">✏️</button>
-                <button class="btn-small btn-danger" data-idx="${idx}" data-confirm="0">🗑️</button>
-            </td></tr>`;
+            tbody.innerHTML += `<tr>
+                <td class="phrase-cell" data-idx="${idx}">${phrase}</td>
+                <td class="actions">
+                    <button class="btn-small btn-danger" data-idx="${idx}" data-confirm="0">🗑️</button>
+                </td>
+            </tr>`;
+        });
+        // Double-click na frázi otevře editaci
+        Array.from(tbody.querySelectorAll('.phrase-cell')).forEach(cell => {
+            cell.addEventListener('dblclick', function(e) {
+                const idx = parseInt(cell.getAttribute('data-idx'));
+                app.editPhrase(idx);
+            });
         });
         // Potvrzovací logika pro mazání fráze
         Array.from(tbody.querySelectorAll('.btn-danger')).forEach(btn => {
             btn.addEventListener('click', function(e) {
                 const idx = parseInt(btn.getAttribute('data-idx'));
                 if (btn.getAttribute('data-confirm') === '0') {
-                    btn.textContent = 'Opravdu smazat?';
+                    btn.textContent = '✅';
                     btn.setAttribute('data-confirm', '1');
                     btn.classList.add('confirm-delete');
                     setTimeout(() => {
@@ -982,11 +1036,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let resetConfirm = false;
         resetBtn.addEventListener('click', () => {
             if (!resetConfirm) {
-                resetBtn.textContent = 'Opravdu vymazat všechna data? Klikněte znovu!';
+                resetBtn.textContent = 'Vymazat všechna data?';
                 resetBtn.classList.add('confirm-delete');
                 resetConfirm = true;
                 setTimeout(() => {
-                    resetBtn.textContent = '🗑️ Vymazat data a začít znovu';
+                    resetBtn.textContent = '🗑️ Začít znovu';
                     resetBtn.classList.remove('confirm-delete');
                     resetConfirm = false;
                 }, 2000);
@@ -1066,6 +1120,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+        // Kliknutí na dropzonu otevře file dialog
+        dropZone.addEventListener('click', () => {
+            const fileInput = document.getElementById('dropZoneFileInput');
+            if (fileInput) fileInput.click();
+        });
+        // Po výběru souboru z dialogu zpracuj import
+        const fileInput = document.getElementById('dropZoneFileInput');
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.type === 'application/json' || file.name.endsWith('.json')) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            try {
+                                const imported = JSON.parse(ev.target.result);
+                                if (imported && imported.children) {
+                                    localStorage.setItem('mikulasData', JSON.stringify(imported));
+                                    app.renderAdminTable();
+                                    alert('Záloha byla úspěšně importována.');
+                                } else {
+                                    alert('Soubor neobsahuje platná data.');
+                                }
+                            } catch (err) {
+                                alert('Chyba při importu zálohy: ' + err.message);
+                            }
+                        };
+                        reader.readAsText(file, 'UTF-8');
+                    } else if (file.name.endsWith('.csv')) {
+                        app.importBackup(file);
+                    } else {
+                        alert('Podporované formáty: .json nebo .csv');
+                    }
+                }
+            });
+        }
     }
     // Import přes soubor pouze pokud existuje fileInput
     const fileInput = document.getElementById('fileInput');
