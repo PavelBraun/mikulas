@@ -392,9 +392,10 @@ h1 {
     border-collapse: separate;
     border-spacing: 0;
     margin: 20px 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(2, 54, 65, 0.582);
     border-radius: 15px;
     overflow: hidden;
+    color:white;
 }
 
 .admin-table th,
@@ -652,4 +653,59 @@ h1 {
     gap: 10px;
     margin-top: 20px;
     justify-content: flex-end;
+}
+
+/* Admin taby */
+.admin-tabs {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 30px;
+    gap: 20px;
+}
+.admin-tab-btn {
+    font-size: 22px;
+    padding: 12px 40px;
+    border-radius: 10px;
+    border: none;
+    background: #eac066;
+    color: #2c3e50;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: background 0.2s;
+}
+.admin-tab-btn.active {
+    background: #8b9caa;
+    color: white;
+}
+.admin-tab-btn:hover {
+    background: #f7d488;
+}
+
+.admin-table-simple {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 20px 0;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 15px;
+    overflow: hidden;
+}
+.admin-table-simple th, .admin-table-simple td {
+    padding: 18px 20px;
+    font-size: 20px;
+    color: #fff;
+    border-bottom: 1px solid #444;
+    text-align: left;
+}
+.admin-table-simple th {
+    background: #eac066;
+    color: #2c3e50;
+    font-weight: bold;
+}
+.admin-table-simple tr:last-child td {
+    border-bottom: none;
+}
+.admin-table-simple td.actions {
+    text-align: right;
 }

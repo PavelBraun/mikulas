@@ -1,5 +1,36 @@
 // Aplikace Mikuláš
 const app = {
+    closeHelp() {
+        document.getElementById('helpModal').classList.remove('active');
+    },
+    showHelp() {
+        document.getElementById('helpModal').classList.add('active');
+    },
+    exportNames() {
+        const data = this.loadData();
+        const csv = '\uFEFFPIN,Jmeno,Text dopisu\n' + data.children.map(child => `${child.pin},"${child.name}","${(child.text || '').replace(/"/g, '""').replace(/\n/g, '\n')}"`).join('\n');
+        this.downloadCSV(csv, 'jmena.csv');
+    },
+    closeAdmin() {
+        this.showScreen('welcomeScreen');
+    },
+    exportBackup() {
+        const data = this.loadData();
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'mikulas-zaloha.json';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    },
+    deleteChild(idx) {
+        const data = this.loadData();
+        data.children.splice(idx, 1);
+        this.saveData(data);
+        this.renderAdminTable();
+    },
     currentChild: null,
     currentPrize: null,
     wheelRotation: 0,
@@ -7,6 +38,7 @@ const app = {
     deleteQueue: null,
     sortColumn: null,
     sortDirection: 'asc',
+    adminTab: 'names',
 
     prizes: [
         { name: '🎁 Dárek', color: '#e74c3c' },
@@ -520,401 +552,305 @@ const app = {
         this.renderAdminTable();
     },
 
-    renderAdminTable() {
-        const data = this.loadData();
-        let children = [...data.children];
-        
-        // Řazení
-        if (this.sortColumn) {
-            children.sort((a, b) => {
-                let valA = a[this.sortColumn];
-                let valB = b[this.sortColumn];
-                
-                // Pro PIN řadit jako čísla
-                if (this.sortColumn === 'pin') {
-                    valA = parseInt(valA);
-                    valB = parseInt(valB);
-                }
-                
-                if (this.sortDirection === 'asc') {
-                    return valA > valB ? 1 : -1;
-                } else {
-                    return valA < valB ? 1 : -1;
-                }
-            });
+    switchAdminTab(tab) {
+        this.adminTab = tab;
+        document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        this.renderAdminTab();
+    },
+
+    renderAdminTab() {
+        const container = document.getElementById('adminTabContent');
+        if (this.adminTab === 'names') {
+            // ...původní tabulka dětí...
+            container.innerHTML = `<div class="admin-controls">
+                <button onclick="app.addChild()" class="btn-small">➕ Přidat dítě</button>
+                <button onclick="app.exportNames()" class="btn-small">💾 Exportovat jména</button>
+                <button onclick="app.openImportModal('names')" class="btn-small">📂 Importovat jména</button>
+            </div>
+            <table class="admin-table" id="adminTable">
+                <thead>
+                    <tr>
+                        <th>PIN</th>
+                        <th>Jméno</th>
+                        <th>Akce</th>
+                    </tr>
+                </thead>
+                <tbody id="adminTableBody"></tbody>
+            </table>`;
+            this.renderAdminTable();
+        } else if (this.adminTab === 'jokes') {
+            container.innerHTML = `<div class="admin-controls">
+                <button onclick="app.addJoke()" class="btn-small">➕ Přidat vtip</button>
+                <button onclick="app.exportJokes()" class="btn-small">💾 Exportovat vtipy</button>
+                <button onclick="app.openImportModal('jokes')" class="btn-small">📂 Importovat vtipy</button>
+            </div>
+            <table class="admin-table-simple" id="jokesTable">
+                <thead>
+                    <tr>
+                        <th>Poznámka</th>
+                        <th>Akce</th>
+                    </tr>
+                </thead>
+                <tbody id="jokesTableBody"></tbody>
+            </table>`;
+            this.renderJokesTable();
+        } else if (this.adminTab === 'phrases') {
+            container.innerHTML = `<div class="admin-controls">
+                <button onclick="app.addPhrase()" class="btn-small">➕ Přidat frázi</button>
+                <button onclick="app.exportPhrases()" class="btn-small">💾 Exportovat fráze</button>
+                <button onclick="app.openImportModal('phrases')" class="btn-small">📂 Importovat fráze</button>
+            </div>
+            <table class="admin-table-simple" id="phrasesTable">
+                <thead>
+                    <tr>
+                        <th>Poznámka</th>
+                        <th>Akce</th>
+                    </tr>
+                </thead>
+                <tbody id="phrasesTableBody"></tbody>
+            </table>`;
+            this.renderPhrasesTable();
         }
-        
+    },
+
+    renderAdminTable() {
+        // Původní renderování tabulky dětí
         const tbody = document.getElementById('adminTableBody');
         tbody.innerHTML = '';
-
-        children.forEach((child, originalIndex) => {
-            // Najít skutečný index v původních datech
-            const realIndex = data.children.findIndex(c => c.pin === child.pin && c.name === child.name);
-            
-            const row = document.createElement('tr');
-            
-            row.innerHTML = `
-                <td><input type="text" value="${child.pin}" onchange="app.updateChild(${realIndex}, 'pin', this.value)" maxlength="4"></td>
-                <td><input type="text" value="${child.name}" onchange="app.updateChild(${realIndex}, 'name', this.value)"></td>
-                <td>
-                    <button class="btn-edit" onclick="app.editChild(${realIndex})">✏️ Upravit</button>
-                    <button class="btn-delete ${this.deleteQueue === realIndex ? 'confirm-delete' : ''}" 
-                            onclick="app.deleteChild(${realIndex})">
-                        ${this.deleteQueue === realIndex ? '⚠️ Potvrdit smazání' : '🗑️ Smazat'}
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
-        
-        // Aktualizovat ikony řazení v hlavičce
-        this.updateSortIcons();
-    },
-
-    toggleSort(column) {
-        if (this.sortColumn === column) {
-            // Přepnout směr
-            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-            // Nový sloupec
-            this.sortColumn = column;
-            this.sortDirection = 'asc';
-        }
-        this.renderAdminTable();
-    },
-
-    updateSortIcons() {
-        // Odstranit všechny ikony
-        document.querySelectorAll('.admin-table th').forEach(th => {
-            th.classList.remove('sort-asc', 'sort-desc', 'sortable');
-        });
-        
-        // Přidat ikony pro tříditelné sloupce
-        const pinTh = document.querySelector('.admin-table th:nth-child(1)');
-        const nameTh = document.querySelector('.admin-table th:nth-child(2)');
-        
-        pinTh.classList.add('sortable');
-        nameTh.classList.add('sortable');
-        
-        if (this.sortColumn === 'pin') {
-            pinTh.classList.add(this.sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
-        } else if (this.sortColumn === 'name') {
-            nameTh.classList.add(this.sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
-        }
-    },
-
-    editChild(index) {
         const data = this.loadData();
-        const child = data.children[index];
-        
-        document.getElementById('modalPin').value = child.pin;
-        document.getElementById('modalName').value = child.name;
-        document.getElementById('modalText').value = child.text;
-        
+        data.children.forEach((child, idx) => {
+            tbody.innerHTML += `<tr><td>${child.pin}</td><td>${child.name}</td><td class="actions">
+                <button onclick="app.editChild(${idx})" class="btn-small">✏️</button>
+                <button class="btn-small btn-danger" data-idx="${idx}" data-confirm="0">🗑️</button>
+            </td></tr>`;
+        });
+        // Potvrzovací logika pro mazání jména
+        Array.from(tbody.querySelectorAll('.btn-danger')).forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const idx = parseInt(btn.getAttribute('data-idx'));
+                if (btn.getAttribute('data-confirm') === '0') {
+                    btn.textContent = 'Opravdu smazat?';
+                    btn.setAttribute('data-confirm', '1');
+                    btn.classList.add('confirm-delete');
+                    setTimeout(() => {
+                        btn.textContent = '🗑️';
+                        btn.setAttribute('data-confirm', '0');
+                        btn.classList.remove('confirm-delete');
+                    }, 2000);
+                } else {
+                    app.deleteChild(idx);
+                }
+            });
+        });
+    },
+
+    renderJokesTable() {
+        const tbody = document.getElementById('jokesTableBody');
+        tbody.innerHTML = '';
+        this.jokes.forEach((joke, idx) => {
+            tbody.innerHTML += `<tr><td>${joke}</td><td class="actions">
+                <button onclick="app.editJoke(${idx})" class="btn-small">✏️</button>
+                <button class="btn-small btn-danger" data-idx="${idx}" data-confirm="0">🗑️</button>
+            </td></tr>`;
+        });
+        // Potvrzovací logika pro mazání vtipu
+        Array.from(tbody.querySelectorAll('.btn-danger')).forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const idx = parseInt(btn.getAttribute('data-idx'));
+                if (btn.getAttribute('data-confirm') === '0') {
+                    btn.textContent = 'Opravdu smazat?';
+                    btn.setAttribute('data-confirm', '1');
+                    btn.classList.add('confirm-delete');
+                    setTimeout(() => {
+                        btn.textContent = '🗑️';
+                        btn.setAttribute('data-confirm', '0');
+                        btn.classList.remove('confirm-delete');
+                    }, 2000);
+                } else {
+                    app.deleteJoke(idx);
+                }
+            });
+        });
+    },
+
+    renderPhrasesTable() {
+        const tbody = document.getElementById('phrasesTableBody');
+        tbody.innerHTML = '';
+        this.fortuneCookies.forEach((phrase, idx) => {
+            tbody.innerHTML += `<tr><td>${phrase}</td><td class="actions">
+                <button onclick="app.editPhrase(${idx})" class="btn-small">✏️</button>
+                <button class="btn-small btn-danger" data-idx="${idx}" data-confirm="0">🗑️</button>
+            </td></tr>`;
+        });
+        // Potvrzovací logika pro mazání fráze
+        Array.from(tbody.querySelectorAll('.btn-danger')).forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const idx = parseInt(btn.getAttribute('data-idx'));
+                if (btn.getAttribute('data-confirm') === '0') {
+                    btn.textContent = 'Opravdu smazat?';
+                    btn.setAttribute('data-confirm', '1');
+                    btn.classList.add('confirm-delete');
+                    setTimeout(() => {
+                        btn.textContent = '🗑️';
+                        btn.setAttribute('data-confirm', '0');
+                        btn.classList.remove('confirm-delete');
+                    }, 2000);
+                } else {
+                    app.deletePhrase(idx);
+                }
+            });
+        });
+    },
+
+    addJoke() {
+        this.editingType = 'joke';
+        this.editingIndex = null;
+        document.getElementById('editModalTitle').textContent = 'Přidat vtip';
+        document.getElementById('editModalLabel').textContent = 'Poznámka:';
+        document.getElementById('modalEditText').value = '';
         document.getElementById('editModal').classList.add('active');
-        document.getElementById('editModal').dataset.editIndex = index;
     },
-
-    saveModal() {
-        const index = parseInt(document.getElementById('editModal').dataset.editIndex);
-        const pin = document.getElementById('modalPin').value;
-        const name = document.getElementById('modalName').value;
-        const text = document.getElementById('modalText').value;
-
-        // Validace
-        if (pin === '9989') {
-            alert('PIN 9989 je rezervován pro administraci!');
-            return;
-        }
-        if (pin.length !== 4 || !/^\d+$/.test(pin)) {
-            alert('PIN musí být 4číselný!');
-            return;
-        }
-
-        const data = this.loadData();
-        
-        // Kontrola duplicity
-        const duplicate = data.children.find((c, i) => i !== index && c.pin === pin);
-        if (duplicate) {
-            alert('Tento PIN už existuje!');
-            return;
-        }
-
-        // Uložit (zachovat gender pokud existuje)
-        data.children[index] = { 
-            pin, 
-            name, 
-            gender: data.children[index].gender || 'male',
-            text 
-        };
-        this.saveData(data);
-        this.closeModal();
-        this.renderAdminTable();
+    editJoke(idx) {
+        this.editingType = 'joke';
+        this.editingIndex = idx;
+        document.getElementById('editModalTitle').textContent = 'Upravit vtip';
+        document.getElementById('editModalLabel').textContent = 'Poznámka:';
+        document.getElementById('modalEditText').value = this.jokes[idx];
+        document.getElementById('editModal').classList.add('active');
     },
-
+    deleteJoke(idx) {
+        this.jokes.splice(idx, 1);
+        this.renderJokesTable();
+    },
+    addPhrase() {
+        this.editingType = 'phrase';
+        this.editingIndex = null;
+        document.getElementById('editModalTitle').textContent = 'Přidat frázi';
+        document.getElementById('editModalLabel').textContent = 'Poznámka:';
+        document.getElementById('modalEditText').value = '';
+        document.getElementById('editModal').classList.add('active');
+    },
+    editPhrase(idx) {
+        this.editingType = 'phrase';
+        this.editingIndex = idx;
+        document.getElementById('editModalTitle').textContent = 'Upravit frázi';
+        document.getElementById('editModalLabel').textContent = 'Poznámka:';
+        document.getElementById('modalEditText').value = this.fortuneCookies[idx];
+        document.getElementById('editModal').classList.add('active');
+    },
+    deletePhrase(idx) {
+        this.fortuneCookies.splice(idx, 1);
+        this.renderPhrasesTable();
+    },
+    saveEditModal() {
+        const val = document.getElementById('modalEditText').value.trim();
+        if (this.editingType === 'joke') {
+            if (this.editingIndex === null) {
+                this.jokes.push(val);
+            } else {
+                this.jokes[this.editingIndex] = val;
+            }
+            this.renderJokesTable();
+        } else if (this.editingType === 'phrase') {
+            if (this.editingIndex === null) {
+                this.fortuneCookies.push(val);
+            } else {
+                this.fortuneCookies[this.editingIndex] = val;
+            }
+            this.renderPhrasesTable();
+        }
+        document.getElementById('editModal').classList.remove('active');
+    },
     closeModal() {
         document.getElementById('editModal').classList.remove('active');
     },
 
-    updateChild(index, field, value) {
-        const data = this.loadData();
-        
-        // Kontrola PINu
-        if (field === 'pin') {
-            if (value === '9989') {
-                alert('PIN 9989 je rezervován pro administraci!');
-                this.renderAdminTable();
-                return;
-            }
-            if (value.length !== 4 || !/^\d+$/.test(value)) {
-                alert('PIN musí být 4číselný!');
-                this.renderAdminTable();
-                return;
-            }
-            // Kontrola duplicity
-            const duplicate = data.children.find((c, i) => i !== index && c.pin === value);
-            if (duplicate) {
-                alert('Tento PIN už existuje!');
-                this.renderAdminTable();
-                return;
-            }
-        }
-
-        data.children[index][field] = value;
-        this.saveData(data);
+    // Import/export CSV
+    exportJokes() {
+        const csv = '\uFEFFPoznamka\n' + this.jokes.map(j => '"' + j.replace(/"/g, '""') + '"').join('\n');
+        this.downloadCSV(csv, 'vtipy.csv');
     },
-
-    deleteChild(index) {
-        // První kliknutí - označit k smazání
-        if (this.deleteQueue !== index) {
-            this.deleteQueue = index;
-            this.renderAdminTable();
-            
-            // Po 3 sekundách resetovat
-            setTimeout(() => {
-                if (this.deleteQueue === index) {
-                    this.deleteQueue = null;
-                    this.renderAdminTable();
-                }
-            }, 3000);
-            return;
-        }
-        
-        // Druhé kliknutí - skutečně smazat
-        const data = this.loadData();
-        data.children.splice(index, 1);
-        this.saveData(data);
-        this.deleteQueue = null;
-        this.renderAdminTable();
+    exportPhrases() {
+        const csv = '\uFEFFPoznamka\n' + this.fortuneCookies.map(f => '"' + f.replace(/"/g, '""') + '"').join('\n');
+        this.downloadCSV(csv, 'fraze.csv');
     },
-
-    addChild() {
-        const data = this.loadData();
-        
-        // Najít volný PIN
-        let newPin = '';
-        for (let i = 1000; i <= 9999; i++) {
-            const pin = i.toString();
-            if (pin === '9989') continue;
-            if (!data.children.find(c => c.pin === pin)) {
-                newPin = pin;
-                break;
-            }
-        }
-
-        // Přidat dítě s prázdnými údaji
-        data.children.push({
-            pin: newPin,
-            name: '',
-            gender: 'male',
-            text: ''
-        });
-        
-        this.saveData(data);
-        
-        // Otevřít modal pro editaci nového dítěte
-        const newIndex = data.children.length - 1;
-        this.editChild(newIndex);
+    openImportModal(type) {
+        this.importType = type;
+        document.getElementById('importModal').classList.add('active');
+        document.getElementById('importModalTitle').textContent = 'Importovat ' + (type === 'jokes' ? 'vtipy' : type === 'phrases' ? 'fráze' : 'jména');
+        document.getElementById('importTemplateLink').innerHTML = `<a href="#" onclick="app.downloadTemplate('${type}')">Stáhnout šablonu CSV</a>`;
     },
-
-    exportBackup() {
-        const data = this.loadData();
-        const json = JSON.stringify(data, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `mikulas-backup-${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+    closeImportModal() {
+        document.getElementById('importModal').classList.remove('active');
     },
-
-    importBackup(file) {
+    downloadTemplate(type) {
+        let csv = '\uFEFFPoznamka\n"Příklad textu"';
+        this.downloadCSV(csv, type + '-template.csv');
+    },
+    importCSVModal() {
+        const fileInput = document.getElementById('importFileInput');
+        const file = fileInput.files[0];
+        if (!file) return;
         const reader = new FileReader();
         reader.onload = (e) => {
-            try {
-                const content = e.target.result;
-                
-                // Pokud je to CSV
-                if (file.name.endsWith('.csv')) {
-                    this.importCSV(content);
-                } else {
-                    // JSON
-                    const data = JSON.parse(content);
-                    if (data.children && Array.isArray(data.children)) {
-                        this.saveData(data);
-                        this.renderAdminTable();
-                        alert('Záloha byla úspěšně obnovena!');
-                    } else {
-                        alert('Neplatný formát zálohy!');
-                    }
-                }
-            } catch (err) {
-                alert('Chyba při načítání zálohy!');
+            const text = e.target.result;
+            const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
+            if (lines.length < 2) return;
+            const items = lines.slice(1).map(l => l.replace(/^"|"$/g, '').replace(/""/g, '"'));
+            if (this.importType === 'jokes') {
+                this.jokes = items;
+                this.renderJokesTable();
+            } else if (this.importType === 'phrases') {
+                this.fortuneCookies = items;
+                this.renderPhrasesTable();
             }
+            this.closeImportModal();
         };
         reader.readAsText(file, 'UTF-8');
     },
-
-    importCSV(csvContent) {
-        // Najít všechny záznamy - respektovat uvozovky
-        const records = [];
-        let currentRecord = '';
-        let inQuotes = false;
-        let quoteCount = 0;
-        
-        for (let i = 0; i < csvContent.length; i++) {
-            const char = csvContent[i];
-            
-            if (char === '"') {
-                quoteCount++;
-                currentRecord += char;
-                // Pokud je sudý počet uvozovek, jsme mimo uvozovky
-                inQuotes = (quoteCount % 2 === 1);
-            } else if ((char === '\n' || (char === '\r' && csvContent[i + 1] === '\n')) && !inQuotes) {
-                // Konec záznamu
-                if (currentRecord.trim()) {
-                    records.push(currentRecord.trim());
-                }
-                currentRecord = '';
-                quoteCount = 0;
-                if (char === '\r') i++; // Přeskočit \n po \r
-            } else {
-                currentRecord += char;
-            }
-        }
-        
-        // Přidat poslední záznam
-        if (currentRecord.trim()) {
-            records.push(currentRecord.trim());
-        }
-
-        if (records.length < 2) {
-            alert('CSV soubor je prázdný!');
-            return;
-        }
-
-        const children = [];
-        
-        // Přeskočit hlavičku (první záznam)
-        for (let i = 1; i < records.length; i++) {
-            const parts = this.parseCSVLine(records[i]);
-            
-            if (parts.length >= 3) {
-                const pin = parts[0];
-                const name = parts[1];
-                let text = parts[2];
-                
-                // Validace
-                if (pin.length === 4 && /^\d+$/.test(pin) && pin !== '9989') {
-                    children.push({
-                        pin,
-                        name,
-                        gender: 'male',
-                        text
-                    });
-                }
-            }
-        }
-
-        if (children.length === 0) {
-            alert('Žádná platná data v CSV!');
-            return;
-        }
-
-        // Uložit
-        this.saveData({ children });
-        this.renderAdminTable();
-        alert(`Importováno ${children.length} dětí!`);
+    downloadCSV(csv, filename) {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     },
 
-    parseCSVLine(line) {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            
-            if (char === '"') {
-                // Zkontrolovat escapované uvozovky ""
-                if (inQuotes && line[i + 1] === '"') {
-                    current += '"';
-                    i++; // Přeskočit druhou uvozovku
-                } else {
-                    inQuotes = !inQuotes;
-                }
-            } else if (char === ',' && !inQuotes) {
-                result.push(current.trim());
-                current = '';
-            } else {
-                current += char;
-            }
-        }
-        result.push(current.trim());
-        
-        return result;
-    },
-
-    clearData() {
-        // První kliknutí - varování
-        if (!this.clearDataConfirm) {
-            this.clearDataConfirm = true;
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.textContent = '⚠️ OPRAVDU smazat vše?';
-            btn.style.animation = 'pulse 0.5s ease-in-out infinite';
-            
-            setTimeout(() => {
-                this.clearDataConfirm = false;
-                btn.textContent = originalText;
-                btn.style.animation = '';
-            }, 3000);
-            return;
-        }
-        
-        // Druhé kliknutí - smazat
-        localStorage.removeItem('mikulasData');
-        this.clearDataConfirm = false;
-        this.renderAdminTable();
-        alert('Všechna data byla smazána!');
-    },
-
-    closeAdmin() {
-        this.showScreen('welcomeScreen');
-    },
-
-    showHelp() {
-        document.getElementById('helpModal').classList.add('active');
-    },
-
-    closeHelp() {
-        document.getElementById('helpModal').classList.remove('active');
-    }
+    // Načtení při načtení
 };
 
-// Inicializace při načtení
+window.app = app;
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Logika pro dvojklik na vymazání dat
+    const resetBtn = document.getElementById('resetDataBtn');
+    if (resetBtn) {
+        let resetConfirm = false;
+        resetBtn.addEventListener('click', () => {
+            if (!resetConfirm) {
+                resetBtn.textContent = 'Opravdu vymazat všechna data? Klikněte znovu!';
+                resetBtn.classList.add('confirm-delete');
+                resetConfirm = true;
+                setTimeout(() => {
+                    resetBtn.textContent = '🗑️ Vymazat data a začít znovu';
+                    resetBtn.classList.remove('confirm-delete');
+                    resetConfirm = false;
+                }, 2000);
+            } else {
+                localStorage.clear();
+                location.reload();
+            }
+        });
+    }
+    // Inicializace admin tabů
+    if (document.getElementById('tab-names')) {
+        app.switchAdminTab('names');
+    }
+    // Ostatní původní inicializace...
+
     // PIN input navigace
     const pinInputs = document.querySelectorAll('.pin-digit');
     pinInputs.forEach((input, index) => {
@@ -940,38 +876,56 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Drag & Drop pro zálohu
+    // Drag & Drop pro zálohu vždy pokud existuje dropZone
     const dropZone = document.getElementById('dropZone');
+    if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                if (file.type === 'application/json' || file.name.endsWith('.json')) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        try {
+                            const imported = JSON.parse(ev.target.result);
+                            if (imported && imported.children) {
+                                localStorage.setItem('mikulasData', JSON.stringify(imported));
+                                app.renderAdminTable();
+                                alert('Záloha byla úspěšně importována.');
+                            } else {
+                                alert('Soubor neobsahuje platná data.');
+                            }
+                        } catch (err) {
+                            alert('Chyba při importu zálohy: ' + err.message);
+                        }
+                    };
+                    reader.readAsText(file, 'UTF-8');
+                } else if (file.name.endsWith('.csv')) {
+                    app.importBackup(file);
+                } else {
+                    alert('Podporované formáty: .json nebo .csv');
+                }
+            }
+        });
+    }
+    // Import přes soubor pouze pokud existuje fileInput
     const fileInput = document.getElementById('fileInput');
-
-    dropZone.addEventListener('click', () => fileInput.click());
-
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('dragover');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        const file = e.dataTransfer.files[0];
-        if (file && (file.type === 'application/json' || file.name.endsWith('.csv'))) {
-            app.importBackup(file);
-        } else {
-            alert('Podporované formáty: .json nebo .csv');
-        }
-    });
-
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            app.importBackup(file);
-        }
-    });
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                app.importBackup(file);
+            }
+        });
+    }
 
     // Klávesové zkratky
     document.addEventListener('keydown', (e) => {
@@ -1016,10 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Pokud je aktivní admin obrazovka a nějaký input má focus, ignorovat
             if (activeScreen.id === 'adminScreen') {
-                const focusedElement = document.activeElement;
-                if (focusedElement && (focusedElement.tagName === 'INPUT' || focusedElement.tagName === 'TEXTAREA')) {
-                    return;
-                }
+                return;
             }
             
             // Najít všechna viditelná tlačítka na aktivní obrazovce (kromě admin tabulky)
