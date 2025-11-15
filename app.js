@@ -8,8 +8,24 @@ const app = {
     },
     exportNames() {
         const data = this.loadData();
-        const csv = '\uFEFFPIN,Jmeno,Text dopisu\n' + data.children.map(child => `${child.pin},"${child.name}","${(child.text || '').replace(/"/g, '""').replace(/\n/g, '\n')}"`).join('\n');
-        this.downloadCSV(csv, 'jmena.csv');
+        const rows = ['PIN,Jmeno,Text dopisu'];
+        data.children.forEach(child => {
+            const pin = child.pin;
+            const name = child.name.replace(/"/g, '""');
+            let textDopisu = (child.text ? child.text.replace(/"/g, '""') : '');
+            textDopisu = textDopisu.replace(/\r?\n/g, '<br>');
+            const finalText = `Ahoj ${child.name},<br><br>${textDopisu}<br>`;
+            console.log(`Export dopisu pro ${child.name}:`, finalText);
+            rows.push(`${pin},"${name}","${finalText}"`);
+        });
+        const csv = '\uFEFF' + rows.join('\r\n');
+        const now = new Date();
+        const pad = n => n.toString().padStart(2, '0');
+        const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
+        const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const filename = `${dateStr}_Mikulas_jmena_${timeStr}.csv`;
+        console.log('ExportNames filename:', filename);
+        this.downloadCSV(csv, filename);
     },
     closeAdmin() {
         this.showScreen('welcomeScreen');
@@ -18,9 +34,14 @@ const app = {
         const data = this.loadData();
         const json = JSON.stringify(data, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
+        const now = new Date();
+        const pad = n => n.toString().padStart(2, '0');
+        const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
+        const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const filename = `${dateStr}_Mikulas_jmena_${timeStr}.json`;
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = 'mikulas-zaloha.json';
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -489,12 +510,14 @@ const app = {
         let signature = '';
         let showReward = false;
         if (this.currentChild.pin !== '4564' && this.currentChild.pin !== '1231') {
-            fullText = letterText + '\n\nUžij si svou odměnu!\n\n';
+            fullText = 'Ahoj ' + this.currentChild.name + ',\n\n' + letterText + '\n\nUžij si svou odměnu!\n\n';
             showReward = true;
             signature = 'Mikuláš a spol.';
         } else {
             signature = 'Mikuláš a spol.';
         }
+
+        // console.log(fullText);
         
         // Odsazení třetího řádku pod nadpisem
         const lines = fullText.split('\n');
@@ -617,6 +640,7 @@ const app = {
     renderAdminTable() {
         // Původní renderování tabulky dětí
         const tbody = document.getElementById('adminTableBody');
+        if (!tbody) return; // Element neexistuje, pokud není aktivní tab 'names'
         tbody.innerHTML = '';
         const data = this.loadData();
         data.children.forEach((child, idx) => {
@@ -703,6 +727,96 @@ const app = {
         });
     },
 
+    addChild() {
+        this.editingType = 'child';
+        this.editingIndex = null;
+        document.getElementById('editModalTitle').textContent = 'Přidat dítě';
+        document.getElementById('editModalLabel').textContent = 'PIN:';
+        const modal = document.getElementById('editModal');
+        const modalContent = modal.querySelector('.modal-content');
+        
+        // Vygenerovat nový nepoužitý PIN
+        const data = this.loadData();
+        const usedPins = new Set(data.children.map(child => child.pin));
+        let newPin = '';
+        for (let i = 1000; i <= 9999; i++) {
+            const pin = i.toString();
+            if (!usedPins.has(pin) && pin !== '9989' && pin !== '7897' && pin !== '1231' && pin !== '4564') {
+                newPin = pin;
+                break;
+            }
+        }
+        
+        // Přidáme extra pole pro jméno a text
+        modalContent.innerHTML = `
+            <h2 id="editModalTitle">Přidat dítě</h2>
+            <label>PIN:</label>
+            <input type="text" id="modalEditPin" maxlength="4" value="${newPin}" />
+            <label>Jméno:</label>
+            <input type="text" id="modalEditName" />
+            <label>Text dopisu:</label>
+            <textarea id="modalEditText"></textarea>
+            <div class="modal-buttons">
+                <button class="btn-large" onclick="app.saveChildModal()">💾 Uložit</button>
+                <button class="btn-large" onclick="app.closeModal()">❌ Zrušit</button>
+            </div>
+        `;
+        modal.classList.add('active');
+        
+        // Nastavit focus na pole Jméno po zobrazení modalu
+        setTimeout(() => {
+            document.getElementById('modalEditName').focus();
+        }, 100);
+    },
+    
+    editChild(idx) {
+        this.editingType = 'child';
+        this.editingIndex = idx;
+        const data = this.loadData();
+        const child = data.children[idx];
+        const modal = document.getElementById('editModal');
+        const modalContent = modal.querySelector('.modal-content');
+        modalContent.innerHTML = `
+            <h2 id="editModalTitle">Upravit dítě</h2>
+            <label>PIN:</label>
+            <input type="text" id="modalEditPin" maxlength="4" value="${child.pin}" />
+            <label>Jméno:</label>
+            <input type="text" id="modalEditName" value="${child.name}" />
+            <label>Text dopisu:</label>
+            <textarea id="modalEditText">${child.text || ''}</textarea>
+            <div class="modal-buttons">
+                <button class="btn-large" onclick="app.saveChildModal()">💾 Uložit</button>
+                <button class="btn-large" onclick="app.closeModal()">❌ Zrušit</button>
+            </div>
+        `;
+        modal.classList.add('active');
+    },
+
+    saveChildModal() {
+        const pin = document.getElementById('modalEditPin').value.trim();
+        const name = document.getElementById('modalEditName').value.trim();
+        const text = document.getElementById('modalEditText').value.trim();
+        
+        if (!pin || !name) {
+            alert('PIN a jméno jsou povinné!');
+            return;
+        }
+        
+        const data = this.loadData();
+        
+        if (this.editingIndex === null) {
+            // Přidání nového dítěte
+            data.children.push({ pin, name, text });
+        } else {
+            // Úprava existujícího dítěte
+            data.children[this.editingIndex] = { pin, name, text };
+        }
+        
+        this.saveData(data);
+        this.renderAdminTable();
+        this.closeModal();
+    },
+
     addJoke() {
         this.editingType = 'joke';
         this.editingIndex = null;
@@ -763,17 +877,49 @@ const app = {
         document.getElementById('editModal').classList.remove('active');
     },
     closeModal() {
-        document.getElementById('editModal').classList.remove('active');
+        const modal = document.getElementById('editModal');
+        modal.classList.remove('active');
+        // Obnovit původní strukturu modalu
+        const modalContent = modal.querySelector('.modal-content');
+        modalContent.innerHTML = `
+            <h2 id="editModalTitle">Upravit</h2>
+            <label id="editModalLabel">Poznámka:</label>
+            <textarea id="modalEditText"></textarea>
+            <div class="modal-buttons">
+                <button class="btn-large" onclick="app.saveEditModal()">💾 Uložit</button>
+                <button class="btn-large" onclick="app.closeModal()">❌ Zrušit</button>
+            </div>
+        `;
     },
 
     // Import/export CSV
     exportJokes() {
-        const csv = '\uFEFFPoznamka\n' + this.jokes.map(j => '"' + j.replace(/"/g, '""') + '"').join('\n');
-        this.downloadCSV(csv, 'vtipy.csv');
+        const rows = ['Poznamka'];
+        this.jokes.forEach(joke => {
+            const text = joke.replace(/"/g, '""');
+            rows.push(`"${text}"`);
+        });
+        const csv = '\uFEFF' + rows.join('\r\n');
+        const now = new Date();
+        const pad = n => n.toString().padStart(2, '0');
+        const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
+        const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const filename = `${dateStr}_Mikulas_vtipy_${timeStr}.csv`;
+        this.downloadCSV(csv, filename);
     },
     exportPhrases() {
-        const csv = '\uFEFFPoznamka\n' + this.fortuneCookies.map(f => '"' + f.replace(/"/g, '""') + '"').join('\n');
-        this.downloadCSV(csv, 'fraze.csv');
+        const rows = ['Poznamka'];
+        this.fortuneCookies.forEach(phrase => {
+            const text = phrase.replace(/"/g, '""');
+            rows.push(`"${text}"`);
+        });
+        const csv = '\uFEFF' + rows.join('\r\n');
+        const now = new Date();
+        const pad = n => n.toString().padStart(2, '0');
+        const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
+        const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const filename = `${dateStr}_Mikulas_fraze_${timeStr}.csv`;
+        this.downloadCSV(csv, filename);
     },
     openImportModal(type) {
         this.importType = type;
@@ -786,7 +932,12 @@ const app = {
     },
     downloadTemplate(type) {
         let csv = '\uFEFFPoznamka\n"Příklad textu"';
-        this.downloadCSV(csv, type + '-template.csv');
+        const now = new Date();
+        const pad = n => n.toString().padStart(2, '0');
+        const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
+        const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const filename = `${dateStr}_Mikulas_${type}_${timeStr}-template.csv`;
+        this.downloadCSV(csv, filename);
     },
     importCSVModal() {
         const fileInput = document.getElementById('importFileInput');
