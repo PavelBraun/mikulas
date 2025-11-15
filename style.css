@@ -1,0 +1,655 @@
+html{
+
+    background-color: black;    
+}
+body {
+    font-family: Tahoma, sans-serif;
+    overflow: hidden;
+    width: 1024px;
+    height: 1280px;
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
+/* Obrazovky */
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1024px;
+    height: 1280px;
+    display: none;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.screen.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.content {
+    text-align: center;
+    padding: 40px;
+    max-width: 800px;
+    width: 90%;
+}
+
+/* Welcome a Goodbye - posunout dolů */
+#welcomeScreen .content,
+#goodbyeScreen .content {
+    position: absolute;
+    bottom: 150px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+h1 {
+    font-size: 48px;
+    margin-bottom: 30px;
+    color: white;
+}
+
+/* Tlačítka */
+.btn-large {
+    font-family: Tahoma, sans-serif;
+    font-size: 24px;
+    padding: 20px 50px;
+    margin: 20px 10px;
+    border: none;
+    border-radius: 15px;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-large:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.btn-large:active {
+    transform: translateY(0);
+}
+
+.btn-small {
+    font-family: Tahoma, sans-serif;
+    font-size: 16px;
+    padding: 10px 20px;
+    margin: 5px;
+    border: none;
+    border-radius: 8px;
+    background: #3498db;
+    color: white;
+    cursor: pointer;
+}
+
+.btn-small:hover {
+    background: #2980b9;
+}
+
+.btn-small.btn-danger {
+    background: #e74c3c;
+}
+
+.btn-small.btn-danger:hover {
+    background: #c0392b;
+}
+
+/* PIN vstupy */
+.pin-inputs {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin: 30px 0;
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.pin-digit {
+    width: 70px;
+    height: 70px;
+    font-size: 36px;
+    text-align: center;
+    border: 3px solid #667eea;
+    border-radius: 10px;
+    font-family: Tahoma, sans-serif;
+    caret-color: transparent;
+}
+
+.pin-digit:focus {
+    outline: none;
+    border-color: #764ba2;
+    box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+    caret-color: transparent;
+}
+
+/* Neviditelné tlačítko pro vtipy */
+.secret-joke-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 200px;
+    opacity: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    z-index: 10;
+}
+
+/* Neviditelné tlačítko pro regeneraci */
+.secret-regenerate-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 200px;
+    opacity: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    z-index: 10;
+}
+
+#pinScreen .content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.error-message {
+    color: #d8bebb;
+    font-size: 18px;
+    font-weight: bold;
+    min-height: 25px;
+    margin: 10px 0;
+    position: absolute;
+    bottom: 200px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+/* Kolo - skryté, místo něj progressbar */
+#wheelCanvas {
+    display: none;
+}
+
+#wheelScreen .content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.loading-container {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    width: 600px;
+}
+
+.loading-text {
+    font-size: 28px;
+    color: white;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.progress-bar {
+    width: 100%;
+    height: 30px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #eac066 0%, #8b9caa 100%);
+    width: 0%;
+    transition: width 3s linear;
+    border-radius: 15px;
+}
+
+/* Pergamen */
+.parchment {
+    position: relative;
+    top: 180px;
+    left: 120px;
+    border-radius: 10px;
+    padding: 40px;
+    margin: 20px 0;
+    height: 560px;
+    width: 460px;
+    
+    overflow-y: auto;
+}
+
+.letter-text {
+    padding-top: 20px;
+    font-family: cursive;
+    font-weight: bolder;
+    font-size: 28px;
+    line-height: 1.6;
+    color: #2c3e50;
+    white-space: pre-wrap;
+}
+
+#endLetterButton {
+    position: absolute;
+    bottom: 85px;
+    left: 50%;
+    z-index: 1000;
+    transform: translateX(-50%);
+}
+
+/* Admin panel */
+.admin-screen {
+    background-image: url('images/bg-welcome.png') !important;
+    background-size: cover;
+    position: relative;
+}
+
+.close-admin-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(231, 76, 60, 0.9);
+    color: white;
+    font-size: 30px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.close-admin-btn:hover {
+    background: rgba(192, 57, 43, 1);
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Tlačítko nápovědy */
+.help-btn {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(52, 152, 219, 0.9);
+    color: white;
+    font-size: 30px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.help-btn:hover {
+    background: rgba(41, 128, 185, 1);
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.admin-screen .content {
+    position: absolute;
+    width: 98%;
+    height: 90%;
+    overflow-y: auto;
+    background: rgba(0,0,0,0.4);
+    border-radius: 20px;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Vlastní scrollbar pro admin panel */
+.admin-screen .content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.admin-screen .content::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+}
+
+.admin-screen .content::-webkit-scrollbar-thumb {
+    background: rgba(2, 21, 105, 0.5);
+    border-radius: 10px;
+}
+
+.admin-screen .content::-webkit-scrollbar-thumb:hover {
+    background: rgba(2, 21, 105, 0.8);
+}
+
+/* Scrollbar pro Firefox */
+.admin-screen .content {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(2, 21, 105, 0.5) rgba(0, 0, 0, 0.1);
+}
+
+.admin-controls {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.file-drop-zone {
+    flex: 1;
+    min-width: 300px;
+    padding: 20px;
+    border: 3px dashed #dcdddd;
+    border-radius: 10px;
+    background: rgba(102, 126, 234, 0.1);
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.file-drop-zone:hover,
+.file-drop-zone.dragover {
+    background: rgba(102, 126, 234, 0.2);
+}
+
+.file-drop-zone p {
+    margin: 0;
+    color: #cbcdd3;
+    font-size: 16px;
+}
+
+/* Tabulka */
+.admin-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 20px 0;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 5px;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+.admin-table th {
+    background: #021569;
+    color: white;
+    font-weight: bold;
+    position: relative;
+    user-select: none;
+}
+
+.admin-table th.sortable {
+    cursor: pointer;
+}
+
+.admin-table th.sortable:hover {
+    background: #032080;
+}
+
+.admin-table th.sortable::after {
+    content: ' ⇅';
+    opacity: 0.3;
+    font-size: 12px;
+}
+
+.admin-table th.sort-asc::after {
+    content: ' ▲';
+    opacity: 1;
+}
+
+.admin-table th.sort-desc::after {
+    content: ' ▼';
+    opacity: 1;
+}
+
+.admin-table th:first-child {
+    border-top-left-radius: 15px;
+}
+
+.admin-table th:last-child {
+    border-top-right-radius: 15px;
+}
+
+
+/* PIN sloupec */
+.admin-table td:first-child,
+.admin-table th:first-child {
+    width: 80px;
+}
+
+/* Jméno sloupec */
+.admin-table td:nth-child(2),
+.admin-table th:nth-child(2) {
+    width: 300px;
+}
+
+/* Akce sloupec */
+.admin-table td:last-child,
+.admin-table th:last-child {
+    width: 250px;
+}
+
+.admin-table input,
+.admin-table select {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-family: Tahoma, sans-serif;
+    font-size: 14px;
+}
+
+.btn-edit {
+    background: #021569;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: Tahoma, sans-serif;
+    margin-right: 5px;
+}
+
+.btn-edit:hover {
+    background: #2980b9;
+}
+
+.btn-delete {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: Tahoma, sans-serif;
+    transition: all 0.3s;
+}
+
+.btn-delete:hover {
+    background: #c0392b;
+}
+
+.btn-delete.confirm-delete {
+    background: #ff5722;
+    animation: pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    padding: 40px;
+    border-radius: 20px;
+    max-width: 700px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.modal-content h2 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+}
+
+/* Nápověda modal */
+.help-modal {
+    max-width: 900px;
+    max-height: 85vh;
+}
+
+.modal-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(231, 76, 60, 0.9);
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: all 0.3s;
+}
+
+.modal-close-btn:hover {
+    background: rgba(192, 57, 43, 1);
+    transform: scale(1.1);
+}
+
+.help-section {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.help-section:last-child {
+    border-bottom: none;
+}
+
+.help-section h3 {
+    color: #3498db;
+    margin-bottom: 10px;
+    font-size: 18px;
+}
+
+.help-section p {
+    margin: 10px 0;
+    line-height: 1.6;
+    color: #2c3e50;
+}
+
+.help-section ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.help-section li {
+    margin: 8px 0;
+    line-height: 1.6;
+    color: #34495e;
+}
+
+.help-section pre {
+    background: #ecf0f1;
+    padding: 15px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 10px 0;
+}
+
+.help-section strong {
+    color: #2c3e50;
+    font-weight: bold;
+}
+
+.modal-content label {
+    display: block;
+    margin: 15px 0 5px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.modal-content input,
+.modal-content textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-family: Tahoma, sans-serif;
+    font-size: 14px;
+}
+
+.modal-content textarea {
+    min-height: 200px;
+    resize: vertical;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    justify-content: flex-end;
+}

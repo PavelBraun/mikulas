@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1024, initial-scale=1.0">
+    <title>Mikulášská aplikace</title>
+    <link rel="icon" type="image/png" href="images/app-icon.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Úvodní obrazovka -->
+    <div id="welcomeScreen" class="screen active" style="background-image: url('images/bg-welcome.png')">
+        <div class="content">
+            <h1>Vítej!</h1>
+            <button onclick="app.goToPin()" class="btn-large">Začít</button>
+        </div>
+    </div>
+
+    <!-- PIN obrazovka -->
+    <div id="pinScreen" class="screen" style="background-image: url('images/bg-pin.png')">
+        <button class="secret-joke-btn" onclick="app.triggerJoke()"></button>
+        <div class="content">
+            <div class="pin-inputs">
+                <input type="password" maxlength="1" class="pin-digit" data-index="0" onclick="app.secretCode()">
+                <input type="password" maxlength="1" class="pin-digit" data-index="1" onclick="app.secretCode()">
+                <input type="password" maxlength="1" class="pin-digit" data-index="2" onclick="app.secretCode()">
+                <input type="password" maxlength="1" class="pin-digit" data-index="3" onclick="app.secretCode()">
+            </div>
+            <p class="error-message" id="pinError"></p>
+        </div>
+    </div>
+
+    <!-- Kolo štěstí -->
+    <div id="wheelScreen" class="screen" style="background-image: url('images/bg-kolo.png')">
+        <div class="content">
+            <canvas id="wheelCanvas" width="600" height="600"></canvas>
+            <div class="loading-container">
+                <div class="loading-text">Hledám ve svých poznámkách...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+            <button onclick="app.spinWheel()" id="spinButton" class="btn-large" style="display: none;">Roztočit</button>
+        </div>
+    </div>
+
+    <!-- Dopis na pergamenu -->
+    <div id="letterScreen" class="screen" style="background-image: url('images/bg-letter.png')">
+        <button class="secret-regenerate-btn" onclick="app.regenerateContent()"></button>
+        <div class="content">
+            <div class="parchment">
+                <div id="letterText" class="letter-text"></div>
+            </div>
+            <button id="endLetterButton" onclick="app.goToGoodbye()" class="btn-large">Dokončit</button>
+        </div>
+    </div>
+
+    <!-- Rozloučení -->
+    <div id="goodbyeScreen" class="screen" style="background-image: url('images/bg-goodbye.png')">
+        <div class="content">
+            <h1>Děkujeme a těšíme se na další setkání!</h1>
+            <button onclick="app.restart()" class="btn-large">Začít znovu</button>
+        </div>
+    </div>
+
+    <!-- Admin panel -->
+    <div id="adminScreen" class="screen admin-screen">
+        <button class="help-btn" onclick="app.showHelp()" title="Nápověda">?</button>
+        <button class="close-admin-btn" onclick="app.closeAdmin()" title="Zavřít administraci">✕</button>
+        <div class="content">
+            <h1>Administrace - Nastavení dětí</h1>
+            
+            <div class="admin-controls">
+                <button onclick="app.addChild()" class="btn-small">➕ Přidat dítě</button>
+                <button onclick="app.exportBackup()" class="btn-small">💾 Vytvořit zálohu</button>
+                <button onclick="app.clearData()" class="btn-small btn-danger">🗑️ Smazat vše</button>
+                <div class="file-drop-zone" id="dropZone">
+                    <p>📂 Přetáhněte zálohu (.json nebo .csv) sem nebo klikněte pro výběr</p>
+                    <input type="file" id="fileInput" accept=".json,.csv" style="display: none;">
+                </div>
+            </div>
+
+            <table class="admin-table" id="adminTable">
+                <thead>
+                    <tr>
+                        <th onclick="app.toggleSort('pin')">PIN</th>
+                        <th onclick="app.toggleSort('name')">Jméno</th>
+                        <th>Akce</th>
+                    </tr>
+                </thead>
+                <tbody id="adminTableBody">
+                </tbody>
+            </table>
+
+            <button onclick="app.closeAdmin()" class="btn-large">Zavřít administraci</button>
+        </div>
+    </div>
+
+    <!-- Modal pro editaci -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h2>Upravit dítě</h2>
+            <label>PIN:</label>
+            <input type="text" id="modalPin" maxlength="4">
+            <label>Jméno:</label>
+            <input type="text" id="modalName">
+            <label>Text dopisu:</label>
+            <textarea id="modalText"></textarea>
+            <div class="modal-buttons">
+                <button class="btn-large" onclick="app.saveModal()">💾 Uložit</button>
+                <button class="btn-large" onclick="app.closeModal()">❌ Zrušit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal s nápovědou -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content help-modal">
+            <button class="modal-close-btn" onclick="app.closeHelp()" title="Zavřít">✕</button>
+            <h2>📖 Dokumentace Mikulášské aplikace</h2>
+            
+            <div class="help-section">
+                <h3>🎯 Základní použití</h3>
+                <p>Aplikace slouží k zobrazení personalizovaných dopisů od Mikuláše. Každé dítě má svůj unikátní PIN kód.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>🔢 Speciální PIN kódy</h3>
+                <ul>
+                    <li><strong>9989</strong> - Vstup do administrace</li>
+                    <li><strong>7897</strong> - Tajný kód pro náhodný motivační citát</li>
+                    <li><strong>1231</strong> - Štěstíčko s motivačním citátem</li>
+                    <li><strong>4564</strong> - Vtipný režim s náhodným vtipem</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>🎮 Ovládání</h3>
+                <ul>
+                    <li><strong>Enter</strong> - Potvrzení na obrazovkách s jedním tlačítkem</li>
+                    <li><strong>Mezerník</strong> - Tajný kód (PIN 7897) na PIN obrazovce</li>
+                    <li><strong>Kliknutí na PIN pole</strong> - Také spustí tajný kód (7897)</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>👥 Správa dětí</h3>
+                <ul>
+                    <li>Kliknutím na řádek v tabulce upravíte dítě</li>
+                    <li>Dvojklik na tlačítko "Smazat" potvrdí smazání</li>
+                    <li>PIN je automaticky přiřazen při přidání nového dítěte (1000-9999)</li>
+                    <li>Kliknutím na záhlaví sloupce PIN nebo Jméno řadíte data</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>💾 Import a Export</h3>
+                <p><strong>Export:</strong> Vytvoří zálohu všech dat ve formátu JSON.</p>
+                <p><strong>Import:</strong> Podporuje formáty .json a .csv</p>
+                <p><strong>CSV formát:</strong></p>
+                <pre>PIN,Jmeno,Text dopisu
+1234,"Petr","Milý Petře,\nbyls letos hodný!"</pre>
+                <p>Pro víceřádkový text použijte uvozovky. Excel: uložte jako CSV UTF-8.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>✉️ Formát dopisu</h3>
+                <p>K textu dopisu se automaticky přidává patička:</p>
+                <pre>Užij si svou odměnu!
+
+                                    Mikuláš a spol.</pre>
+            </div>
+
+            <div class="help-section">
+                <h3>🍪 Fortune Cookie (PIN 7897)</h3>
+                <p>Speciální PIN generuje náhodné jméno a motivační citát. Dítě není uloženo do databáze.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>😄 Vtipný režim (PIN 4564)</h3>
+                <p>Speciální PIN zobrazuje náhodný vtip. Perfektní pro pobavení!</p>
+            </div>
+
+            <div class="help-section">
+                <h3>⚙️ Technické informace</h3>
+                <ul>
+                    <li>Data jsou uložena v lokálním úložišti prohlížeče</li>
+                    <li>Rozlišení: 1024×1280 px (kiosek režim)</li>
+                    <li>Doporučený prohlížeč: Chrome, Edge</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
