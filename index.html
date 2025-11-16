@@ -8,6 +8,28 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+    <!-- Overlay PINpad -->
+    <div id="pinpadOverlay" style="position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0); z-index: 2000; align-items: center; justify-content: center;">
+    <div style="position: absolute; left: 220px; top: 795px; background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.2); padding: 32px; min-width: 320px;">
+            <h2 style="text-align:center; margin-bottom:16px;">Zadejte PIN</h2>
+            <div id="pinpadDigits" style="display:flex; justify-content:center; gap:8px; margin-bottom:16px;"></div>
+            <div style="display:grid; grid-template-columns:repeat(3,60px); gap:12px; justify-content:center;">
+                <button class="pinpad-btn" data-digit="1">1</button>
+                <button class="pinpad-btn" data-digit="2">2</button>
+                <button class="pinpad-btn" data-digit="3">3</button>
+                <button class="pinpad-btn" data-digit="4">4</button>
+                <button class="pinpad-btn" data-digit="5">5</button>
+                <button class="pinpad-btn" data-digit="6">6</button>
+                <button class="pinpad-btn" data-digit="7">7</button>
+                <button class="pinpad-btn" data-digit="8">8</button>
+                <button class="pinpad-btn" data-digit="9">9</button>
+                <button class="pinpad-btn" data-action="clear">C</button>
+                <button class="pinpad-btn" data-digit="0">0</button>
+                <button class="pinpad-btn" data-action="ok">OK</button>
+            </div>
+        </div>
+    </div>
     <!-- Úvodní obrazovka -->
     <div id="welcomeScreen" class="screen active" style="background-image: url('images/bg-welcome.png')">
         <div class="content">
@@ -21,10 +43,10 @@
         <button class="secret-joke-btn" onclick="app.triggerJoke()"></button>
         <div class="content">
             <div class="pin-inputs">
-                <input type="password" maxlength="1" class="pin-digit" data-index="0" onclick="app.secretCode()">
-                <input type="password" maxlength="1" class="pin-digit" data-index="1" onclick="app.secretCode()">
-                <input type="password" maxlength="1" class="pin-digit" data-index="2" onclick="app.secretCode()">
-                <input type="password" maxlength="1" class="pin-digit" data-index="3" onclick="app.secretCode()">
+                <input type="tel" maxlength="1" class="pin-digit" data-index="0" pattern="[0-9]*" inputmode="numeric" onclick="app.secretCode()">
+                <input type="tel" maxlength="1" class="pin-digit" data-index="1" pattern="[0-9]*" inputmode="numeric" onclick="app.secretCode()">
+                <input type="tel" maxlength="1" class="pin-digit" data-index="2" pattern="[0-9]*" inputmode="numeric" onclick="app.secretCode()">
+                <input type="tel" maxlength="1" class="pin-digit" data-index="3" pattern="[0-9]*" inputmode="numeric" onclick="app.secretCode()">
             </div>
             <p class="error-message" id="pinError"></p>
         </div>

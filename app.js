@@ -1,3 +1,6 @@
+const signature = '~Mikuláš a spol.';
+let awardText = true;
+
 // Aplikace Mikuláš
 const app = {
     closeHelp() {
@@ -188,13 +191,13 @@ const app = {
                     pin: '1234',
                     name: 'Sofie',
                     gender: 'female',
-                    text: 'Milá Sofie,\n\nbylas letos hodná holčička! Měj se krásně a užij si svou výhru.\n\nTvůj Mikuláš'
+                    text: 'bylas letos hodná holčička! Měj se krásně!'
                 },
                 {
                     pin: '5678',
                     name: 'Tomáš',
                     gender: 'male',
-                    text: 'Milý Tomáši,\n\nbyls letos hodný chlapec! Měj se krásně a užij si svou výhru.\n\nTvůj Mikuláš'
+                    text: 'byls letos hodný chlapec! Měj se krásně!'
                 }
             ]
         };
@@ -209,6 +212,15 @@ const app = {
     showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(screenId).classList.add('active');
+        // PINpad overlay zobrazit pouze na PIN obrazovce
+        const pinpadOverlay = document.getElementById('pinpadOverlay');
+        if (pinpadOverlay) {
+            if (screenId === 'pinScreen') {
+                pinpadOverlay.classList.add('active');
+            } else {
+                pinpadOverlay.classList.remove('active');
+            }
+        }
     },
 
     goToPin() {
@@ -290,7 +302,6 @@ const app = {
             // Vytvořit dočasné dítě
             this.currentChild = {
                 pin: '7897',
-                name: randomName,
                 text: `Vítáme tě tady,\n\n${fortuneCookie}`
             };
             
@@ -301,8 +312,6 @@ const app = {
 
         // Speciální PIN pro štěstíčko
         if (pin === '1231') {
-            // Vygenerovat náhodné jméno
-            const randomName = this.randomNames[Math.floor(Math.random() * this.randomNames.length)];
             
             // Vygenerovat náhodnou fortune cookie větu
             const fortuneCookie = this.fortuneCookies[Math.floor(Math.random() * this.fortuneCookies.length)];
@@ -310,9 +319,9 @@ const app = {
             // Vytvořit dočasné dítě
             this.currentChild = {
                 pin: '1231',
-                name: randomName,
                 text: `Tvé štěstíčko:\n\n${fortuneCookie}`
             };
+            awardText = false;
             
             this.showScreen('wheelScreen');
             this.startLoading();
@@ -321,8 +330,8 @@ const app = {
 
         // Speciální PIN pro vtipy
         if (pin === '4564') {
-            // Vygenerovat náhodné jméno
-            const randomName = this.randomNames[Math.floor(Math.random() * this.randomNames.length)];
+
+            awardText = false;
             
             // Vygenerovat náhodný vtip
             const randomJoke = this.jokes[Math.floor(Math.random() * this.jokes.length)];
@@ -330,7 +339,6 @@ const app = {
             // Vytvořit dočasné dítě
             this.currentChild = {
                 pin: '4564',
-                name: randomName,
                 text: `Máme pro tebe vtip:\n\n${randomJoke}`
             };
             
@@ -349,6 +357,17 @@ const app = {
             this.startLoading();
         } else {
             document.getElementById('pinError').textContent = 'Nesprávný PIN';
+            // Animace PINpadu při chybě
+            const pinpadOverlay = document.getElementById('pinpadOverlay');
+            const pinpadDigits = document.getElementById('pinpadDigits');
+            if (pinpadOverlay) {
+                pinpadOverlay.classList.add('error');
+                setTimeout(() => {
+                    pinpadOverlay.classList.remove('error');
+                    if (pinpadDigits) pinpadDigits.textContent = '____';
+                    inputs.forEach(input => input.value = '');
+                }, 500);
+            }
             // Vymazat PIN po chybě
             setTimeout(() => {
                 inputs.forEach(input => input.value = '');
@@ -501,20 +520,11 @@ const app = {
 
     // Zobrazení dopisu
     showLetter() {
-        const letterText = this.currentChild.text.replace('{výhra}', this.currentPrize.name);
-        
         // Pro vtipy neaplikovat odměnu a podpis
-        let fullText = letterText;
-        let signature = '';
-        let showReward = false;
-        if (this.currentChild.pin !== '4564' && this.currentChild.pin !== '1231') {
-            fullText = 'Ahoj ' + this.currentChild.name + ',\n\n' + letterText + '\n\nUžij si svou odměnu!\n\n';
-            showReward = true;
-            signature = 'Mikuláš a spol.';
-        } else {
-            signature = 'Mikuláš a spol.';
-        }
-
+        let fullText = ''
+        let greetings = this.currentChild.name ? 'Ahoj ' + this.currentChild.name + ',\n\n' : '';
+        let awardSuffix = awardText ? '\n\nUžij si svou odměnu!\n\n' : '';
+        fullText = greetings + this.currentChild.text + awardSuffix;
         // console.log(fullText);
         
         // Odsazení třetího řádku pod nadpisem
@@ -522,9 +532,10 @@ const app = {
         if (lines.length > 2) {
             lines[2] = '<span style="text-indent:2ch;display:inline-block;width:calc(100% - 2ch);">' + lines[2] + '</span>';
         }
+
         const formattedText = lines.join('<br>');
         const letterElement = document.getElementById('letterText');
-        letterElement.innerHTML = formattedText + '<div style="text-align: right; margin-top: 10px;">~' + signature + '</div>';
+        letterElement.innerHTML = formattedText + '<div style="text-align: right; margin-top: 10px;">' + signature + '</div>';
         
         // Skrýt/zobrazit neviditelné tlačítko podle typu PINu
         const regenerateBtn = document.querySelector('.secret-regenerate-btn');
@@ -553,6 +564,7 @@ const app = {
             // Nové štěstíčko
             const fortuneCookie = this.fortuneCookies[Math.floor(Math.random() * this.fortuneCookies.length)];
             this.currentChild.text = `Tvé štěstíčko:\n\n${fortuneCookie}`;
+            awardText = false;
             this.showLetter();
         }
     },
@@ -564,6 +576,7 @@ const app = {
     restart() {
         this.currentChild = null;
         this.currentPrize = null;
+        awardText = true;
         this.showScreen('welcomeScreen');
     },
 
@@ -1030,6 +1043,65 @@ const app = {
 window.app = app;
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- PINpad overlay logika ---
+    let pinpadValue = '';
+    const pinpadOverlay = document.getElementById('pinpadOverlay');
+    const pinpadDigits = document.getElementById('pinpadDigits');
+    function renderPinpadDots() {
+        if (pinpadDigits) {
+            pinpadDigits.textContent = '•'.repeat(pinpadValue.length) + '_'.repeat(4 - pinpadValue.length);
+        }
+    }
+    function clearPinpad() {
+        pinpadValue = '';
+        renderPinpadDots();
+    }
+    function submitPinpad() {
+        // Zkopíruj čísla do inputů
+        const pinInputs = document.querySelectorAll('.pin-digit');
+        pinpadValue.split('').forEach((val, idx) => {
+            if (pinInputs[idx]) pinInputs[idx].value = val;
+        });
+        app.verifyPin();
+        clearPinpad();
+    }
+    if (pinpadOverlay) {
+        // Inicializace teček
+        renderPinpadDots();
+        pinpadOverlay.addEventListener('click', (e) => {
+            const btn = e.target.closest('.pinpad-btn');
+            if (!btn) return;
+            if (btn.dataset.digit) {
+                if (pinpadValue.length < 4) {
+                    pinpadValue += btn.dataset.digit;
+                    renderPinpadDots();
+                    if (pinpadValue.length === 4) {
+                        submitPinpad();
+                    }
+                }
+            } else if (btn.dataset.action === 'clear') {
+                clearPinpad();
+            } else if (btn.dataset.action === 'ok') {
+                if (pinpadValue.length === 4) submitPinpad();
+            }
+        });
+        // Zpětná vazba na klávesnici
+        document.addEventListener('keydown', (e) => {
+            if (!pinpadOverlay.classList.contains('active')) return;
+            if (e.key >= '0' && e.key <= '9') {
+                if (pinpadValue.length < 4) {
+                    pinpadValue += e.key;
+                    renderPinpadDots();
+                    if (pinpadValue.length === 4) {
+                        submitPinpad();
+                    }
+                }
+            } else if (e.key === 'Backspace') {
+                pinpadValue = pinpadValue.slice(0, -1);
+                renderPinpadDots();
+            }
+        });
+    }
     // Logika pro dvojklik na vymazání dat
     const resetBtn = document.getElementById('resetDataBtn');
     if (resetBtn) {
