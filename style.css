@@ -410,14 +410,12 @@ h1 {
 
 .admin-screen .content {
     position: absolute;
-    width: 98%;
-    height: 90%;
     overflow-y: auto;
-    background: rgba(0,0,0,0.4);
     border-radius: 20px;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 0px;
+    width: 100%;
+    bottom: 0px;
+    background: rgba(0,0,0,0.4);
 }
 
 /* Vlastní scrollbar pro admin panel */

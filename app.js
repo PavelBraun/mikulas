@@ -229,7 +229,6 @@ const app = {
         document.querySelectorAll('.pin-digit').forEach(input => {
             input.value = '';
         });
-        document.getElementById('pinError').textContent = '';
         document.querySelector('.pin-digit').focus();
     },
 
@@ -293,12 +292,10 @@ const app = {
 
         // Speciální PIN pro fortune cookie
         if (pin === '7897') {
-            // Vygenerovat náhodné jméno
-            const randomName = this.randomNames[Math.floor(Math.random() * this.randomNames.length)];
             
             // Vygenerovat náhodnou fortune cookie větu
             const fortuneCookie = this.fortuneCookies[Math.floor(Math.random() * this.fortuneCookies.length)];
-            
+            awardText = false;
             // Vytvořit dočasné dítě
             this.currentChild = {
                 pin: '7897',
@@ -356,7 +353,6 @@ const app = {
             this.showScreen('wheelScreen');
             this.startLoading();
         } else {
-            document.getElementById('pinError').textContent = 'Nesprávný PIN';
             // Animace PINpadu při chybě
             const pinpadOverlay = document.getElementById('pinpadOverlay');
             const pinpadDigits = document.getElementById('pinpadDigits');
@@ -372,7 +368,6 @@ const app = {
             setTimeout(() => {
                 inputs.forEach(input => input.value = '');
                 inputs[0].focus();
-                document.getElementById('pinError').textContent = '';
             }, 1500);
         }
     },
@@ -559,6 +554,7 @@ const app = {
             // Nová motivační věta
             const fortuneCookie = this.fortuneCookies[Math.floor(Math.random() * this.fortuneCookies.length)];
             this.currentChild.text = `Vítáme tě tady,\n\n${fortuneCookie}`;
+            awardText = false;
             this.showLetter();
         } else if (this.currentChild.pin === '1231') {
             // Nové štěstíčko
@@ -824,8 +820,8 @@ const app = {
             <label>Text dopisu:</label>
             <textarea id="modalEditText"></textarea>
             <div class="modal-buttons">
-                <button class="btn-large" onclick="app.saveChildModal()">💾 Uložit</button>
-                <button class="btn-large" onclick="app.closeModal()">❌ Zrušit</button>
+                <button class="btn-edit" onclick="app.saveChildModal()">💾 Uložit</button>
+                <button class="btn-edit" onclick="app.closeModal()">❌ Zrušit</button>
             </div>
         `;
         modal.classList.add('active');
@@ -852,8 +848,8 @@ const app = {
             <label>Text dopisu:</label>
             <textarea id="modalEditText">${child.text || ''}</textarea>
             <div class="modal-buttons">
-                <button class="btn-large" onclick="app.saveChildModal()">💾 Uložit</button>
-                <button class="btn-large" onclick="app.closeModal()">❌ Zrušit</button>
+                <button class="btn-edit" onclick="app.saveChildModal()">💾 Uložit</button>
+                <button class="btn-edit" onclick="app.closeModal()">❌ Zrušit</button>
             </div>
         `;
         modal.classList.add('active');
@@ -953,8 +949,8 @@ const app = {
             <label id="editModalLabel">Poznámka:</label>
             <textarea id="modalEditText"></textarea>
             <div class="modal-buttons">
-                <button class="btn-large" onclick="app.saveEditModal()">💾 Uložit</button>
-                <button class="btn-large" onclick="app.closeModal()">❌ Zrušit</button>
+                <button class="btn-edit" onclick="app.saveEditModal()">💾 Uložit</button>
+                <button class="btn-edit" onclick="app.closeModal()">❌ Zrušit</button>
             </div>
         `;
     },
@@ -1292,6 +1288,33 @@ document.addEventListener('DOMContentLoaded', () => {
             // Pokud je jen jedno tlačítko, klikni na něj
             if (buttons.length === 1) {
                 buttons[0].click();
+            }
+        }
+    });
+
+    // Animované automatické zadání PINu i na PINpad při stisku mezerníku
+    document.addEventListener('keydown', (e) => {
+        if (!pinpadOverlay || !pinpadOverlay.classList.contains('active')) return;
+        if (e.key === ' ') {
+            // Pokud je pinpad prázdný, spustit animované zadání vtipného PINu
+            if (pinpadValue.length === 0) {
+                const jokePin = ['4', '5', '6', '4'];
+                let index = 0;
+                if (typeof renderPinpadDots === 'function') renderPinpadDots();
+                const fillInterval = setInterval(() => {
+                    if (index < jokePin.length) {
+                        pinpadValue += jokePin[index];
+                        if (typeof renderPinpadDots === 'function') renderPinpadDots();
+                        index++;
+                    } else {
+                        clearInterval(fillInterval);
+                        setTimeout(() => {
+                            if (typeof submitPinpad === 'function') {
+                                submitPinpad();
+                            }
+                        }, 200);
+                    }
+                }, 150);
             }
         }
     });

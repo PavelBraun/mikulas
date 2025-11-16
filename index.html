@@ -10,7 +10,7 @@
 <body>
 
     <!-- Overlay PINpad -->
-    <div id="pinpadOverlay" style="position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); z-index: 2000; align-items: center; justify-content: center;">
+    <div id="pinpadOverlay" style="position: fixed; left: 0; top: 0; width: 1024px; height: 1280px; background: rgba(0,0,0,0.2); z-index: 2000; align-items: center; justify-content: center;">
     <div style="position: absolute; left: 275px; top: 890px;">
             <h2 style="text-align:center; margin-bottom:16px;">&nbsp;</h2>
             <div id="pinpadDigits" style="display:flex; justify-content:center; gap:8px; margin-bottom:16px;"></div>
@@ -48,7 +48,6 @@
                 <input type="tel" maxlength="1" class="pin-digit" data-index="2" pattern="[0-9]*" inputmode="numeric" onclick="app.secretCode()">
                 <input type="tel" maxlength="1" class="pin-digit" data-index="3" pattern="[0-9]*" inputmode="numeric" onclick="app.secretCode()">
             </div>
-            <p class="error-message" id="pinError"></p>
         </div>
     </div>
 
@@ -113,8 +112,8 @@
             <label id="editModalLabel">Poznámka:</label>
             <textarea id="modalEditText"></textarea>
             <div class="modal-buttons">
-                <button class="btn-large continue" onclick="app.saveEditModal()">💾 Uložit</button>
-                <button class="btn-large continue" onclick="app.closeModal()">❌ Zrušit</button>
+                <button class="btn-edit" onclick="app.saveEditModal()">💾 Uložit</button>
+                <button class="btn-edit" onclick="app.closeModal()">❌ Zrušit</button>
             </div>
         </div>
     </div>
@@ -125,8 +124,8 @@
             <h2 id="importModalTitle">Importovat CSV</h2>
             <input type="file" id="importFileInput" accept=".csv">
             <div class="modal-buttons">
-                <button class="btn-large continue" onclick="app.importCSVModal()">📂 Importovat</button>
-                <button class="btn-large continue" onclick="app.closeImportModal()">❌ Zrušit</button>
+                <button class="btn-edit" onclick="app.importCSVModal()">📂 Importovat</button>
+                <button class="btn-edit" onclick="app.closeImportModal()">❌ Zrušit</button>
             </div>
             <div id="importTemplateLink"></div>
         </div>
