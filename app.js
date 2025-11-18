@@ -3,22 +3,436 @@ let awardText = true;
 
 // Aplikace Mikuláš
 const app = {
+    // ---- Audio feedback (beep) pomocí WebAudio ----
+    _audioCtx: null,
+    // Správa zapnutí/vypnutí zvukových efektů
+    isSoundEnabled() {
+        const v = localStorage.getItem('mikulas_sound_enabled');
+        if (v === null) return true; // default enabled
+        return v === '1';
+    },
+    setSoundEnabled(val) {
+        try {
+            localStorage.setItem('mikulas_sound_enabled', val ? '1' : '0');
+        } catch (e) {}
+    },
+    // Auto-print toggle stored in localStorage
+    isAutoPrintEnabled() {
+        const v = localStorage.getItem('mikulas_auto_print');
+        if (v === null) return true; // default enabled
+        return v === '1';
+    },
+    setAutoPrintEnabled(val) {
+        try {
+            localStorage.setItem('mikulas_auto_print', val ? '1' : '0');
+        } catch (e) {}
+    },
+    playBeep(duration = 80, frequency = 800, volume = 0.2) {
+        if (!this.isSoundEnabled()) return;
+        try {
+            if (!this._audioCtx) {
+                this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            const ctx = this._audioCtx;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = frequency;
+            gain.gain.value = volume;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            setTimeout(() => {
+                try { osc.stop(); } catch (e) {}
+            }, duration);
+        } catch (err) {
+            console.warn('AudioContext not available:', err);
+        }
+    },
+    // Přehraj více frekvencí současně (pro DTMF)
+    playTones(frequencies = [800], duration = 80, volume = 0.2, type = 'sine') {
+        if (!this.isSoundEnabled()) return;
+        try {
+            if (!this._audioCtx) this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = this._audioCtx;
+            const gain = ctx.createGain();
+            gain.gain.value = volume;
+            gain.connect(ctx.destination);
+            const oscs = frequencies.map(f => {
+                const o = ctx.createOscillator();
+                o.type = type;
+                o.frequency.value = f;
+                o.connect(gain);
+                o.start();
+                return o;
+            });
+            setTimeout(() => { oscs.forEach(o => { try { o.stop(); } catch(e){} }); }, duration);
+        } catch (err) {
+            console.warn('playTones failed:', err);
+        }
+    },
+    // DTMF map pro čísla
+    playDTMF(digit) {
+        const dtmf = {
+            '1': [697,1209], '2': [697,1336], '3': [697,1477],
+            '4': [770,1209], '5': [770,1336], '6': [770,1477],
+            '7': [852,1209], '8': [852,1336], '9': [852,1477],
+            '*': [941,1209], '0': [941,1336], '#': [941,1477]
+        };
+        if (!this.isSoundEnabled()) return;
+        const freqs = dtmf[digit];
+        if (freqs) this.playTones(freqs, 100, 0.18, 'sine');
+        else this.playBeep(80, 900, 0.15);
+    },
+    // Zvuk pro chybné PIN (illegal)
+    playIllegal() {
+        if (!this.isSoundEnabled()) return;
+        // Windows 'not allowed' like descending tone sequence
+       const seq = [1000, 850, 700];
+        seq.forEach((f, i) => {
+            setTimeout(() => { this.playBeep(110, f, 0.25); }, i * 120);
+        });
+
+    },
+    // Zvuk pro běžné kliknutí tlačítka
+    playClick() {
+        if (!this.isSoundEnabled()) return;
+        this.playBeep(30, 1800, 0.08);
+
+    },
+    
+    playMagic() {
+    if (!this.isSoundEnabled()) return;
+        const sweep = [700, 900, 1200, 1500];
+        sweep.forEach((f, i) => {
+            setTimeout(() => { this.playBeep(80, f, 0.12); }, i * 90);
+        });
+    },
     closeHelp() {
         document.getElementById('helpModal').classList.remove('active');
     },
     showHelp() {
         document.getElementById('helpModal').classList.add('active');
     },
+    // Print preview lightbox
+    showPrintPreview() {
+        try {
+            const preview = document.getElementById('printPreview');
+            const previewLetter = document.getElementById('printPreviewLetter');
+            if (!preview || !previewLetter) {
+                console.warn('Print preview elements missing', { previewExists: !!preview, previewLetterExists: !!previewLetter });
+                return;
+            }
+            // Najdi originální pergamen a jeho uzel
+            const orig = document.querySelector('.parchment');
+            if (!orig) return;
+            // Klonuj celý element, aby měl stejné styly a písmo
+            const clone = orig.cloneNode(true);
+            // Odeber možná ID zevnitř klonu
+            clone.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+            // Vyčisti preview a vlož klon spolu s header/footer obrázky
+            previewLetter.innerHTML = '';
+            // vytvoř header img
+            const headerImg = document.createElement('img');
+            headerImg.className = 'print-preview-header-img';
+            headerImg.src = 'images/bg-print-header.png';
+            headerImg.alt = 'print header';
+            headerImg.style.display = 'block';
+            headerImg.style.width = '100%';
+            headerImg.onerror = () => console.warn('Header image failed to load: images/bg-print-header.png');
+            // vytvoř footer img
+            const footerImg = document.createElement('img');
+            footerImg.className = 'print-preview-footer-img';
+            footerImg.src = 'images/bg-print-footer.png';
+            footerImg.alt = 'print footer';
+            footerImg.style.display = 'block';
+            footerImg.style.width = '100%';
+            footerImg.onerror = () => console.warn('Footer image failed to load: images/bg-print-footer.png');
+            // append header, clone, footer
+            previewLetter.appendChild(headerImg);
+            previewLetter.appendChild(clone);
+            previewLetter.appendChild(footerImg);
+            // Debug logging
+            console.log('Print preview prepared — inserting clone into previewLetter');
+            // Ensure it's visible even if inline styles exist
+            try {
+                preview.style.display = 'flex';
+                preview.classList.add('active');
+            } catch (err) {
+                console.warn('Failed to set preview display/style', err);
+            }
+            // Check that background image exists (best-effort)
+            try {
+                const img = new Image();
+                const el = document.querySelector('.print-preview-bg');
+                const bg = el ? (el.style.backgroundImage || window.getComputedStyle(el).backgroundImage) : null;
+                if (bg && bg !== 'none') {
+                    // extract URL
+                    const m = /url\(["']?(.*?)["']?\)/.exec(bg);
+                    if (m && m[1]) {
+                        img.onload = () => console.log('Print background image loaded:', m[1]);
+                        img.onerror = () => console.warn('Print background image failed to load:', m[1]);
+                        img.src = m[1];
+                    } else {
+                        console.warn('Could not parse print preview background URL from CSS:', bg);
+                    }
+                } else {
+                    console.warn('No print preview background set (print-preview-bg not found or backgroundImage none)');
+                }
+            } catch (err) {
+                console.warn('Background image check failed', err);
+            }
+        } catch (e) { console.warn('showPrintPreview failed', e); }
+    },
+    closePrintPreview() {
+        try {
+            const preview = document.getElementById('printPreview');
+            if (!preview) return;
+            console.log('Closing print preview');
+            preview.classList.remove('active');
+            try { preview.style.display = 'none'; } catch(e) { console.warn('Failed to hide preview', e); }
+        } catch (e) { console.warn('closePrintPreview failed', e); }
+    },
+    // Print the preview lightbox content (opens a new window with the preview and calls print)
+    printPreview(options = {}) {
+        const { autoClose = false, timeout = 1500 } = options;
+        return new Promise((resolve) => {
+            try {
+            const preview = document.getElementById('printPreview');
+            const previewLetter = document.getElementById('printPreviewLetter');
+            if (!preview || !previewLetter) {
+                console.warn('printPreview: preview elements missing');
+                resolve(false);
+                return;
+            }
+            // Find the parchment (letter) inside the preview specifically
+            const orig = previewLetter.querySelector('.parchment') || previewLetter.querySelector('*') || document.querySelector('.parchment');
+            if (!orig) { console.warn('printPreview: no content to print'); return; }
+
+            // Clone the node to avoid mutations
+            const clone = orig.cloneNode(true);
+
+            // Inline computed styles for the clone (simple best-effort)
+            function inlineStyles(element) {
+                const cs = window.getComputedStyle(element);
+                let styleStr = '';
+                for (let i = 0; i < cs.length; i++) {
+                    const prop = cs[i];
+                    styleStr += `${prop}:${cs.getPropertyValue(prop)};`;
+                }
+                element.setAttribute('style', styleStr);
+                // recurse
+                Array.from(element.children).forEach(inlineStyles);
+            }
+            inlineStyles(clone);
+
+            // Prepare hidden iframe content to avoid visible popup
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '100%';
+            iframe.style.width = '0px';
+            iframe.style.height = '0px';
+            iframe.style.border = '0';
+            iframe.style.overflow = 'hidden';
+            iframe.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(iframe);
+            const w = iframe.contentWindow;
+            if (!w || !w.document) { console.warn('Could not create print iframe'); try { document.body.removeChild(iframe); } catch(e){} resolve(false); return; }
+            const doc = w.document;
+            doc.open();
+            // Basic HTML: include same background container styles
+            // ensure relative URLs resolve inside the iframe by setting a base href
+            const baseHref = (window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1));
+            // measure sizes for header, letter and footer from the preview area (avoid global query)
+            const headerEl = previewLetter.querySelector('.print-preview-header-img') || previewLetter.querySelector('.print-header img');
+            const footerEl = previewLetter.querySelector('.print-preview-footer-img') || previewLetter.querySelector('.print-footer img');
+            const letterEl = previewLetter.querySelector('.parchment') || previewLetter.querySelector('*');
+            let rectW = 800;
+            if (letterEl) {
+                const r = letterEl.getBoundingClientRect();
+                rectW = Math.round(r.width) || rectW;
+            }
+            // get header/footer URLs (if images exist)
+            let headerUrl = headerEl ? headerEl.src : null;
+            let footerUrl = footerEl ? footerEl.src : null;
+            // If preview wasn't prepared, fall back to the known asset paths (absolute)
+            try {
+                const baseHrefForAssets = baseHref || (window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1));
+                if (!headerUrl) headerUrl = new URL('images/bg-print-header.png', baseHrefForAssets).href;
+                if (!footerUrl) footerUrl = new URL('images/bg-print-footer.png', baseHrefForAssets).href;
+            } catch (e) { /* ignore URL errors */ }
+            // Build head using fixed 80mm width for receipt printing; preserve header/footer aspect ratio
+            const head = `
+                <head>
+                    <base href="${baseHref}">
+                    <meta charset="utf-8">
+                    <title>Mikuláš - Tisk</title>
+                    <style>
+                        /* Print on 80mm receipt paper */
+                        @page { size: 80mm auto; margin: 0; }
+                        html,body{margin:0;padding:0;height:100%;background:#fff;}
+                        .print-container{display:flex;align-items:flex-start;justify-content:center;padding:0;margin:0;background:#fff;}
+                        /* wrapper is fixed to 80mm and clips overflow to ensure header/footer do not bleed */
+                        .print-wrapper{width:80mm;max-width:80mm;background:#fff;margin:0;padding:0;overflow:hidden;box-sizing:border-box;outline:1px dashed rgba(0,0,0,0.08);} 
+                        .print-header, .print-footer{width:100%;margin:0;padding:0;overflow:hidden;box-sizing:border-box;outline:1px dashed rgba(0,0,0,0.08);} 
+                        /* header/footer images fill the wrapper exactly and preserve aspect ratio */
+                        .print-header img, .print-footer img{display:block;width:100%;height:auto;margin:0;padding:0;border:0;max-width:80mm;}
+                        .print-letter{width:100%;margin:0;padding:20px;box-sizing:border-box;}
+                        img{display:block;max-width:100%;}
+                        body *{box-sizing:border-box;}
+                    </style>
+                </head>`;
+            const headerHtml = headerUrl ? `<div class="print-header"><img src="${headerUrl}" alt="header"></div>` : '';
+            const footerHtml = footerUrl ? `<div class="print-footer"><img src="${footerUrl}" alt="footer"></div>` : '';
+            const body = `<body><div class="print-container"><div class="print-wrapper">${headerHtml}<div class="print-letter"></div>${footerHtml}</div></div></body>`;
+            doc.write(`<!doctype html><html>${head}${body}</html>`);
+            // insert the clone into the print-letter container
+            const letterContainer = doc.querySelector('.print-letter');
+            if (letterContainer) {
+                const adopted = doc.adoptNode(clone);
+                letterContainer.appendChild(adopted);
+            }
+            doc.close();
+
+            // If autoClose requested, hide on-screen print controls so user doesn't see them
+            const uiState = {};
+            try {
+                const pb = document.getElementById('printButton');
+                if (pb) { uiState.printButtonDisplay = pb.style.display; pb.style.display = 'none'; }
+                // hide modal's small buttons if present
+                const modalBtns = document.querySelectorAll('#printPreview .btn-small');
+                if (modalBtns && modalBtns.length) {
+                    uiState.modalBtnDisplays = [];
+                    modalBtns.forEach((b) => { uiState.modalBtnDisplays.push(b.style.display); b.style.display = 'none'; });
+                }
+                // Force a reflow so hiding is rendered before print dialog appears
+                try { void document.body.offsetHeight; } catch(e){}
+            } catch (e) { console.warn('Could not hide on-screen print controls', e); }
+
+            // Wait for images in the iframe document to load before printing
+            const callPrint = () => {
+                try {
+                    // avoid bringing iframe window to foreground (don't call focus)
+                    w.print();
+                    // remove iframe after printing if autoClose
+                    if (autoClose) {
+                        setTimeout(() => {
+                            try { document.body.removeChild(iframe); } catch(e){}
+                            // restore UI
+                            try {
+                                const pb = document.getElementById('printButton');
+                                if (pb) {
+                                    // if we stored original display on dataset, restore that; otherwise use captured uiState
+                                    if (pb.dataset && pb.dataset._prevDisplay !== undefined) {
+                                        pb.style.display = pb.dataset._prevDisplay;
+                                        delete pb.dataset._prevDisplay;
+                                    } else if (uiState.printButtonDisplay !== undefined) {
+                                        pb.style.display = uiState.printButtonDisplay;
+                                    }
+                                }
+                                if (uiState.modalBtnDisplays && uiState.modalBtnDisplays.length) {
+                                    const modalBtns = document.querySelectorAll('#printPreview .btn-small');
+                                    modalBtns.forEach((b, i) => { try { b.style.display = uiState.modalBtnDisplays[i] || ''; } catch(e){} });
+                                }
+                            } catch(e) { console.warn('Could not restore print UI', e); }
+                            resolve(true);
+                        }, 500);
+                    } else {
+                        try { document.body.removeChild(iframe); } catch(e){}
+                        // restore UI immediately
+                        try {
+                            const pb = document.getElementById('printButton');
+                            if (pb) {
+                                if (pb.dataset && pb.dataset._prevDisplay !== undefined) {
+                                    pb.style.display = pb.dataset._prevDisplay;
+                                    delete pb.dataset._prevDisplay;
+                                } else if (uiState.printButtonDisplay !== undefined) {
+                                    pb.style.display = uiState.printButtonDisplay;
+                                }
+                            }
+                            if (uiState.modalBtnDisplays && uiState.modalBtnDisplays.length) {
+                                const modalBtns = document.querySelectorAll('#printPreview .btn-small');
+                                modalBtns.forEach((b, i) => { try { b.style.display = uiState.modalBtnDisplays[i] || ''; } catch(e){} });
+                            }
+                        } catch(e) { console.warn('Could not restore print UI', e); }
+                        resolve(true);
+                    }
+                } catch (err) { console.warn('printPreview: print failed', err); try { document.body.removeChild(iframe); } catch(e){}; resolve(false); }
+            };
+
+            try {
+                const imgs = Array.from(doc.images || []);
+                try {
+                    console.log('printPreview: iframe has images count=', imgs.length, 'srcs=', imgs.map(i => i.src));
+                } catch(e) {}
+                if (imgs.length === 0) {
+                    // no images, print immediately
+                    setTimeout(callPrint, 100);
+                } else {
+                    let loaded = 0;
+                    const onLoadOrError = () => {
+                        loaded++;
+                        if (loaded >= imgs.length) callPrint();
+                    };
+                    imgs.forEach(img => {
+                        if (img.complete) {
+                            loaded++;
+                        } else {
+                            img.addEventListener('load', onLoadOrError);
+                            img.addEventListener('error', onLoadOrError);
+                        }
+                    });
+                    if (loaded >= imgs.length) callPrint();
+                    // safety fallback
+                    setTimeout(() => { if (loaded < imgs.length) callPrint(); }, Math.max(1200, timeout));
+                }
+            } catch (err) {
+                console.warn('printPreview: image wait failed', err);
+                setTimeout(callPrint, 300);
+            }
+        } catch (e) { console.warn('printPreview failed', e); resolve(false); }
+        });
+    },
+
+    finishLetterAndPrint() {
+        // Called when user finishes viewing the letter. Prepare print window and auto-print, then continue.
+        try {
+            // Ensure the previewLetter is prepared (but do not show the modal)
+            const previewLetter = document.getElementById('printPreviewLetter');
+            if (!previewLetter) {
+                console.warn('finishLetterAndPrint: previewLetter missing');
+            }
+            // make sure any visible preview is hidden so user doesn't see it flash
+            try { this.closePrintPreview(); } catch(e) { console.warn('Could not hide preview before printing', e); }
+            // hide the main print button immediately and save its previous state to dataset so printPreview can restore it
+            try {
+                const pb = document.getElementById('printButton');
+                if (pb) { pb.dataset._prevDisplay = pb.style.display || ''; pb.style.display = 'none'; }
+            } catch(e) { console.warn('Could not hide printButton before printing', e); }
+            // If auto-print disabled, skip printing and go to goodbye immediately
+            if (!this.isAutoPrintEnabled()) {
+                try { this.goToGoodbye(); } catch(e){}
+                return;
+            }
+            // Call printPreview in autoClose mode and when done go to goodbye
+            this.printPreview({ autoClose: true, timeout: 2000 }).then((ok) => {
+                // proceed to goodbye screen regardless
+                try { this.goToGoodbye(); } catch(e){}
+            });
+        } catch (e) { console.warn('finishLetterAndPrint failed', e); this.goToGoodbye(); }
+    },
     exportNames() {
         const data = this.loadData();
         const rows = ['PIN,Osloveni,Text dopisu'];
         data.children.forEach(child => {
             const pin = child.pin;
-            const name = child.name.replace(/"/g, '""');
-            let textDopisu = (child.text ? child.text.replace(/"/g, '""') : '');
-            textDopisu = textDopisu.replace(/\r?\n/g, '<br>');
-            const finalText = `Ahoj ${child.name},<br><br>${textDopisu}<br>`;
-            rows.push(`${pin},"${name}","${finalText}"`);
+            const nameEsc = child.name ? child.name.replace(/"/g, '""') : '';
+            let textDopisuEsc = child.text ? child.text.replace(/"/g, '""') : '';
+            // Replace any newline with CRLF so Excel/Windows handles line breaks inside quoted fields
+            textDopisuEsc = textDopisuEsc.replace(/\r?\n/g, '\r\n');
+            // Build final text using real newlines instead of <br> tags
+            const finalTextEsc = `Ahoj ${child.name || ''},\r\n\r\n${textDopisuEsc}\r\n`.replace(/"/g, '""');
+            rows.push(`${pin},"${nameEsc}","${finalTextEsc}"`);
         });
         const csv = '\uFEFF' + rows.join('\r\n');
         const now = new Date();
@@ -358,6 +772,7 @@ const app = {
             const pinpadDigits = document.getElementById('pinpadDigits');
             if (pinpadOverlay) {
                 pinpadOverlay.classList.add('error');
+                try { app.playIllegal(); } catch (err) {}
                 setTimeout(() => {
                     pinpadOverlay.classList.remove('error');
                     if (pinpadDigits) pinpadDigits.textContent = '____';
@@ -566,6 +981,7 @@ const app = {
     },
 
     goToGoodbye() {
+        try { this.playMagic(); } catch (e) {}
         this.showScreen('goodbyeScreen');
     },
 
@@ -1068,6 +1484,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = e.target.closest('.pinpad-btn');
             if (!btn) return;
             if (btn.dataset.digit) {
+                // DTMF tón pro PINpad tlačítko
+                try { app.playDTMF(btn.dataset.digit); } catch (err) {}
                 if (pinpadValue.length < 4) {
                     pinpadValue += btn.dataset.digit;
                     renderPinpadDots();
@@ -1076,9 +1494,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             } else if (btn.dataset.action === 'clear') {
-                clearPinpad();
+                // Pokud je pinpad prázdný, ukončit transakci a vrátit se na úvod
+                if (!pinpadValue || pinpadValue.length === 0) {
+                    clearPinpad();
+                    const pinInputs = document.querySelectorAll('.pin-digit');
+                    pinInputs.forEach(inp => { inp.value = ''; });
+                    try { app.showScreen('welcomeScreen'); } catch (e) {}
+                } else {
+                    // Jinak pouze vymazat pinpad
+                    clearPinpad();
+                }
             } else if (btn.dataset.action === 'ok') {
-                if (pinpadValue.length === 4) submitPinpad();
+                // Pokud není zadáno nic, ukončit transakci a vrátit se na uvod
+                if (!pinpadValue || pinpadValue.length === 0) {
+                    clearPinpad();
+                    const pinInputs = document.querySelectorAll('.pin-digit');
+                    pinInputs.forEach(inp => { inp.value = ''; });
+                    try { app.showScreen('welcomeScreen'); } catch (e) {}
+                } else if (pinpadValue.length === 4) {
+                    submitPinpad();
+                }
             }
         });
         // Zpětná vazba na klávesnici
@@ -1124,11 +1559,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Ostatní původní inicializace...
 
+    // --- Sound toggle button (admin) wiring ---
+    try {
+        const soundBtn = document.getElementById('soundToggle');
+        if (soundBtn) {
+            const updateBtn = () => {
+                const enabled = app.isSoundEnabled();
+                soundBtn.textContent = enabled ? 'Zvuk ON' : 'Zvuk OFF';
+                if (enabled) soundBtn.classList.remove('off'); else soundBtn.classList.add('off');
+            };
+            updateBtn();
+            soundBtn.addEventListener('click', (e) => {
+                const newVal = !app.isSoundEnabled();
+                app.setSoundEnabled(newVal);
+                updateBtn();
+            });
+        }
+    } catch (err) { console.warn('sound toggle wiring failed', err); }
+
+    // Auto-print toggle wiring
+    try {
+        const autoBtn = document.getElementById('autoPrintToggle');
+        if (autoBtn) {
+            const updateAutoBtn = () => {
+                const enabled = app.isAutoPrintEnabled();
+                autoBtn.textContent = enabled ? 'AutoTisk ON' : 'AutoTisk OFF';
+                if (enabled) autoBtn.classList.remove('off'); else autoBtn.classList.add('off');
+            };
+            updateAutoBtn();
+            autoBtn.addEventListener('click', () => {
+                console.log('autoPrintToggle clicked; current=', app.isAutoPrintEnabled());
+                const newVal = !app.isAutoPrintEnabled();
+                app.setAutoPrintEnabled(newVal);
+                console.log('autoPrintToggle newVal=', newVal);
+                updateAutoBtn();
+            });
+        }
+    } catch (err) { console.warn('autoPrint toggle wiring failed', err); }
+
     // PIN input navigace
     const pinInputs = document.querySelectorAll('.pin-digit');
     pinInputs.forEach((input, index) => {
         input.addEventListener('input', (e) => {
             if (e.target.value.length === 1) {
+                // beep pro zadání číslice
+                try { app.playBeep(70, 900, 0.18); } catch (err) {}
                 if (index < pinInputs.length - 1) {
                     pinInputs[index + 1].focus();
                 } else {
@@ -1139,8 +1614,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' && !e.target.value && index > 0) {
-                pinInputs[index - 1].focus();
+            if (e.key === 'Backspace') {
+                // když je pole prázdné a je to backspace, posunout fokus a hrát tón
+                if (!e.target.value && index > 0) {
+                    try { app.playBeep(90, 400, 0.16); } catch (err) {}
+                    pinInputs[index - 1].focus();
+                } else {
+                    // lehký potvrzovací tón pro smažení znaku
+                    try { app.playBeep(40, 700, 0.08); } catch (err) {}
+                }
             }
         });
 
@@ -1237,6 +1719,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Klávesové zkratky
+    // Přidat click zvuk pro běžná tlačítka
+    const allButtons = document.querySelectorAll('.btn-large, .btn-small, .help-btn, .modal-close-btn');
+    allButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            try { app.playClick(); } catch (err) {}
+        });
+    });
+
+    // Přehrát magický zvuk při pokračování (tlačítka s třídou .continue)
+    const continueButtons = document.querySelectorAll('.btn-large.continue');
+    continueButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            try { app.playMagic(); } catch (err) {}
+        });
+    });
+
     document.addEventListener('keydown', (e) => {
         // Mezerník - tajný kód
         if (e.key === ' ' && !e.ctrlKey && !e.altKey && !e.metaKey) {

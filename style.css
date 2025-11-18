@@ -55,9 +55,10 @@
     display: flex;
 }
 .pinpad-btn {
-    font-size: 2rem;
-    padding: 10px 0;
-    background: #eaeaea;
+    font-size: 3rem;
+    font-weight: bolder;
+    padding: 0px 20px;
+    background: #f1ad18;
     border: none;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -315,10 +316,9 @@ h1 {
 /* Pergamen */
 .parchment {
     position: relative;
-    top: 180px;
+    top: 176px;
     left: 120px;
-    border-radius: 10px;
-    padding: 40px;
+    padding: 38px;
     margin: 20px 0;
     height: 560px;
     width: 460px;
@@ -331,10 +331,34 @@ h1 {
     font-family: cursive;
     font-weight: bolder;
     font-size: 28px;
-    line-height: 1.6;
+    line-height: 1.5;
     color: #2c3e50;
     white-space: pre-wrap;
 }
+
+/* Fullscreen print preview lightbox */
+#printPreview {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.65);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+}
+#printPreview.active { display: flex; }
+#printPreview .print-preview-content { position: relative; width: 100%; margin:auto; height: auto; display:flex; align-items:flex-start; justify-content:center; }
+/* Show preview at 80mm width (with responsive max-width) */
+#printPreview .print-preview-bg {  background-color: #fff; width: 80mm; max-width: 95%; height:auto; background-size: cover; background-position: center; display:flex; align-items:flex-start; justify-content:center; box-sizing:border-box; }
+#printPreview .print-preview-bg .parchment { top: 0px; left: 0px; padding: 20px; width: calc(100% - 40px); border-radius: 0px; height: auto !important; box-shadow: none !important; margin: 0 auto; }
+#printPreview .print-preview-bg .letter-text { font-family: cursive; font-weight: bolder; font-size: 1.6em; line-height: 1.4; color: #2c3e50; }
+/* Ensure header/footer images in preview keep aspect ratio and fill width */
+#printPreview .print-preview-bg .print-header img,
+#printPreview .print-preview-bg .print-footer img { display:block; width:100%; height:auto; margin:0; padding:0; }
+#printPreview .print-controls { position: absolute; right: 12px; top: 12px; display:flex; gap:8px; z-index:100000; }
 
 #endLetterButton {
     position: absolute;
