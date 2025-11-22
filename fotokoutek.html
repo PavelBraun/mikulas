@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mikulášský fotokoutek</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Tahoma, system-ui, sans-serif;
+      background: #02152b;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    h1 {
+      margin: 10px 0 5px;
+    }
+    .subtitle {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .video-frame {
+      position: relative;
+      width: 640px;
+      height: 480px;
+      background: #000;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 0 30px rgba(0,0,0,0.7);
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #photoPreview {
+      display: none;
+      width: 640px;
+      height: 480px;
+      border-radius: 16px;
+      box-shadow: 0 0 30px rgba(0,0,0,0.7);
+    }
+    button {
+      border: none;
+      padding: 12px 20px;
+      border-radius: 999px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      background: linear-gradient(to bottom, #ffef9e, #ffb43c);
+      color: #452505;
+      margin: 6px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.6);
+    }
+    button:active {
+      transform: scale(0.97);
+    }
+    #captureCanvas {
+      display: none;
+    }
+    #statusText {
+      margin-top: 10px;
+      min-height: 20px;
+      font-size: 14px;
+      opacity: 0.9;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Mikulášský fotokoutek 🎅📸</h1>
+  <div class="subtitle">
+    Usměj se na kameru, vyfoť se s kouzelným rámečkem a fotka se sama vytiskne.
+  </div>
+
+  <div class="video-frame" id="videoContainer">
+    <video id="video" autoplay playsinline></video>
+  </div>
+
+  <img id="photoPreview" alt="náhled fotky">
+
+  <canvas id="captureCanvas" width="640" height="480"></canvas>
+
+  <div>
+    <button id="startCamBtn">Spustit kameru</button>
+    <button id="captureBtn" disabled>Vyfotit 📸</button>
+    <button id="retakeBtn" disabled>Nová fotka 🔁</button>
+    <button id="printBtn" disabled>Vytisknout ✨</button>
+  </div>
+
+  <div id="statusText"></div>
+
+<script>
+const video = document.getElementById("video");
+const photoPreview = document.getElementById("photoPreview");
+const canvas = document.getElementById("captureCanvas");
+const ctx = canvas.getContext("2d");
+
+const startCamBtn = document.getElementById("startCamBtn");
+const captureBtn = document.getElementById("captureBtn");
+const retakeBtn = document.getElementById("retakeBtn");
+const printBtn = document.getElementById("printBtn");
+const statusText = document.getElementById("statusText");
+
+let frameImage = null;
+const FRAME_SRC = "frame-photobooth.png"; // tvůj PNG rámeček
+
+function loadFrame() {
+  return new Promise((resolve, reject) => {
+    if (frameImage) return resolve(frameImage);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = FRAME_SRC;
+    frameImage = img;
+  });
+}
+
+function logStatus(t) {
+  statusText.textContent = t;
+}
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480 },
+      audio: false
+    });
+
+    video.srcObject = stream;
+    captureBtn.disabled = false;
+    logStatus("Kamera zapnuta. Můžeš fotit.");
+  } catch (err) {
+    logStatus("Nepodařilo se spustit kameru.");
+    console.error(err);
+  }
+}
+
+async function capturePhoto() {
+  await loadFrame();
+
+  canvas.width = 640;
+  canvas.height = 480;
+
+  // video → canvas
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  // overlay → canvas
+  ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
+
+  // preview
+  const dataUrl = canvas.toDataURL("image/png");
+  photoPreview.src = dataUrl;
+  photoPreview.style.display = "block";
+  document.getElementById("videoContainer").style.display = "none";
+
+  captureBtn.disabled = true;
+  retakeBtn.disabled = false;
+  printBtn.disabled = false;
+  logStatus("Pokud se ti fotka líbí, klikni na 'Vytisknout'.");
+}
+
+function retakePhoto() {
+  photoPreview.style.display = "none";
+  document.getElementById("videoContainer").style.display = "block";
+  captureBtn.disabled = false;
+  retakeBtn.disabled = true;
+  printBtn.disabled = true;
+  logStatus("Zkusíme to znovu 🙂");
+}
+
+function downloadAndPrint() {
+  const dataUrl = canvas.toDataURL("image/png");
+  const filename = "mikulas_fotka_" + Date.now() + ".png";
+
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  printBtn.disabled = true;
+  logStatus("Ukládám... tiskárna brzy vytiskne.");
+}
+
+startCamBtn.onclick = startCamera;
+captureBtn.onclick = capturePhoto;
+retakeBtn.onclick = retakePhoto;
+printBtn.onclick = downloadAndPrint;
+</script>
+
+</body>
+<!-- skrytý canvas pro 4x6" fotku -->
+<canvas id="captureCanvas" width="1800" height="1200" style="display:none;"></canvas>
+
+<script>
+const video = document.getElementById("video");
+const photoPreview = document.getElementById("photoPreview");
+const canvas = document.getElementById("captureCanvas");
+const ctx = canvas.getContext("2d");
+
+const startCamBtn = document.getElementById("startCamBtn");
+const captureBtn = document.getElementById("captureBtn");
+const retakeBtn = document.getElementById("retakeBtn");
+const printBtn = document.getElementById("printBtn");
+const statusText = document.getElementById("statusText");
+
+let frameImage = null;
+
+// 4x6" @ 300 DPI -> 1800 x 1200 px
+const CANVAS_WIDTH = 1800;
+const CANVAS_HEIGHT = 1200;
+
+canvas.width = CANVAS_WIDTH;
+canvas.height = CANVAS_HEIGHT;
+
+const FRAME_SRC = "frame-photobooth.png"; // tvůj rámeček 3:2 (ideálně 1800x1200)
+
+/** Načtení rámečku jen jednou */
+function loadFrame() {
+  return new Promise((resolve, reject) => {
+    if (frameImage) return resolve(frameImage);
+    const img = new Image();
+    img.onload = () => {
+      frameImage = img;
+      resolve(img);
+    };
+    img.onerror = reject;
+    img.src = FRAME_SRC;
+  });
+}
+
+function logStatus(t) {
+  statusText.textContent = t || "";
+}
+
+/** Spuštění kamery */
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    captureBtn.disabled = false;
+    logStatus("Kamera běží. Až budeš připravený/á, klikni na „Vyfotit“.");
+  } catch (e) {
+    console.error(e);
+    logStatus("Nepodařilo se spustit kameru. Zkontroluj oprávnění.");
+  }
+}
+
+/**
+ * Nakreslí video do canvasu tak, aby vyplnilo celý 1800x1200
+ * – jako 'object-fit: cover' (bez bílých pruhů)
+ */
+function drawVideoCover() {
+  const vW = video.videoWidth || 1280;
+  const vH = video.videoHeight || 720;
+  const videoRatio = vW / vH;
+  const targetRatio = CANVAS_WIDTH / CANVAS_HEIGHT; // 1800/1200 = 1.5
+
+  let sx, sy, sW, sH;
+
+  if (videoRatio > targetRatio) {
+    // video je širší než 3:2 -> oříznout po stranách
+    sH = vH;
+    sW = vH * targetRatio;
+    sx = (vW - sW) / 2;
+    sy = 0;
+  } else {
+    // video je užší než 3:2 -> oříznout nahoře/dole
+    sW = vW;
+    sH = vW / targetRatio;
+    sx = 0;
+    sy = (vH - sH) / 2;
+  }
+
+  ctx.drawImage(video, sx, sy, sW, sH, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+}
+
+/** Vyfocení fotky + overlay rámečku */
+async function capturePhoto() {
+  await loadFrame();
+
+  // vyplnit pozadí (kdyby byl někde průhledný kus)
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  // video → canvas (object-fit: cover)
+  drawVideoCover();
+
+  // rámeček přes celou plochu
+  ctx.drawImage(frameImage, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  // náhled pro dítě (zmenšený)
+  const previewDataUrl = canvas.toDataURL("image/png");
+  photoPreview.src = previewDataUrl;
+  photoPreview.style.display = "block";
+  document.getElementById("videoContainer").style.display = "none";
+
+  captureBtn.disabled = true;
+  retakeBtn.disabled = false;
+  printBtn.disabled = false;
+  logStatus("Pokud se ti fotka líbí, klikni na „Vytisknout“.");
+}
+
+/** Nový pokus o fotku */
+function retakePhoto() {
+  photoPreview.style.display = "none";
+  document.getElementById("videoContainer").style.display = "block";
+  captureBtn.disabled = false;
+  retakeBtn.disabled = true;
+  printBtn.disabled = true;
+  logStatus("Zkusíme novou fotku 🙂");
+}
+
+/** Uložení 4x6 fotky -> hotfolder -> DP40 */
+function downloadAndPrint() {
+  const dataUrl = canvas.toDataURL("image/png");
+  const filename = "mikulas_photo_" + Date.now() + ".png";
+
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  // Prohlížeč uloží soubor do výchozího download folderu:
+  // -> C:\temp\mikuláš\hotfolder
+  // a tam si ho převezme watcher pro DP40.
+
+  printBtn.disabled = true;
+  logStatus("Fotka uložena, tiskárna DP40 brzy vytiskne 4×6\" fotku.");
+}
+
+startCamBtn.addEventListener("click", startCamera);
+captureBtn.addEventListener("click", capturePhoto);
+retakeBtn.addEventListener("click", retakePhoto);
+printBtn.addEventListener("click", downloadAndPrint);
+</script>
+
+</html>
+
