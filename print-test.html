@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Print Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; }
+    .note { margin-top: 20px; color: #666 }
+  </style>
+</head>
+<body>
+  <h1>Print Test</h1>
+  <p>This page will call <code>window.print()</code> automatically in 1s to test kiosk printing flags.</p>
+  <div class="note">If you see a system print dialog, the kiosk flags did not suppress it in this environment.</div>
+  <script>
+    setTimeout(() => {
+      try { window.print(); } catch (e) { console.error('print failed', e); }
+    }, 1000);
+  </script>
+</body>
+</html>

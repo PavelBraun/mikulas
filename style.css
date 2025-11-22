@@ -68,6 +68,29 @@
 .pinpad-btn:active {
     background: #d1d1d1;
 }
+/* Image PIN grid specifics */
+#imagePinGrid .pinpad-btn {
+    padding: 6px !important;
+    border-radius: 12px !important;
+    background: rgba(255,255,255,0.95) !important;
+}
+#imagePinGrid .image-pin-btn {
+    width: 150px;
+    height: 150px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+#imagePinGrid .pinpad-btn img { max-width:100%; max-height:100%; object-fit:contain; }
+
+/* show pressed digit above grid */
+#imageLastPressed { text-align:center; font-size:72px; height:72px; line-height:72px; }
+
+/* error state for image PIN screen */
+#pinImageScreen.error {
+    animation: shake 0.4s;
+    background: rgba(255,0,0,0.25) !important;
+}
 #pinpadDigits {
     font-size: 2rem;
     letter-spacing: 1.5rem;
@@ -101,11 +124,18 @@ body {
     background-repeat: no-repeat;
 }
 
+#welcomeScreen .screen.active {
+    display: flex;
+    align-items: end;
+    justify-content: center;
+}
+
 .screen.active {
     display: flex;
     align-items: center;
     justify-content: center;
 }
+
 
 .content {
     text-align: center;
@@ -134,7 +164,6 @@ h1 {
 .btn-large {
     font-family: Tahoma, sans-serif;
     font-size: 6em;
-    padding: 40px 150px;
     margin: 20px 10px;
     border: none;
     border-radius: 40px;
@@ -269,60 +298,50 @@ h1 {
     white-space: nowrap;
 }
 
-/* Kolo - skryté, místo něj progressbar */
-#wheelCanvas {
-    display: none;
-}
+/* Wheel removed — related styles deleted */
 
-#wheelScreen .content {
-    position: relative;
-    width: 100%;
-    height: 100%;
-}
-
+/* Wheel / loading container restored */
 .loading-container {
     position: absolute;
     bottom: 100px;
     left: 50%;
     transform: translateX(-50%);
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
     width: 600px;
+    text-align: center;
 }
-
 .loading-text {
-    font-size: 28px;
     color: white;
-    margin-bottom: 20px;
+    font-size: 28px;
+    margin-bottom: 8px;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
-
 .progress-bar {
     width: 100%;
-    height: 30px;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 15px;
+    height: 18px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
-
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #eac066 0%, #8b9caa 100%);
+    background: linear-gradient(90deg, #f39c12, #f1c40f);
     width: 0%;
-    transition: width 3s linear;
-    border-radius: 15px;
+    transition: width 2s linear;
 }
 
 /* Pergamen */
 .parchment {
     position: relative;
-    top: 176px;
-    left: 120px;
-    padding: 38px;
-    margin: 20px 0;
-    height: 560px;
-    width: 460px;
-    
+    top: 120px;
+    left: 90px;
+    padding: 24px;
+    margin: 12px 0;
+    height: auto;
+    width: 520px;
     overflow-y: auto;
 }
 
@@ -351,9 +370,9 @@ h1 {
 }
 #printPreview.active { display: flex; }
 #printPreview .print-preview-content { position: relative; width: 100%; margin:auto; height: auto; display:flex; align-items:flex-start; justify-content:center; }
-/* Show preview at 80mm width (with responsive max-width) */
-#printPreview .print-preview-bg {  background-color: #fff; width: 80mm; max-width: 95%; height:auto; background-size: cover; background-position: center; display:flex; align-items:flex-start; justify-content:center; box-sizing:border-box; }
-#printPreview .print-preview-bg .parchment { top: 0px; left: 0px; padding: 20px; width: calc(100% - 40px); border-radius: 0px; height: auto !important; box-shadow: none !important; margin: 0 auto; }
+/* Show preview slightly narrower than 80mm to avoid right-edge cutoff */
+#printPreview .print-preview-bg {  background-color: #fff; width: 100%; height:auto; background-size: cover; background-position: center; display:flex; align-items:flex-start; justify-content:center; box-sizing:border-box; }
+#printPreview .print-preview-bg .parchment { top: 0px; left: 0px; padding: 12px 8px; width: calc(100% - 20px); border-radius: 0px; height: auto !important; box-shadow: none !important; margin: 0 auto; }
 #printPreview .print-preview-bg .letter-text { font-family: cursive; font-weight: bolder; font-size: 1.6em; line-height: 1.4; color: #2c3e50; }
 /* Ensure header/footer images in preview keep aspect ratio and fill width */
 #printPreview .print-preview-bg .print-header img,
@@ -366,6 +385,19 @@ h1 {
     left: 50%;
     z-index: 1000;
     transform: translateX(-50%);
+}
+
+/* Strong print layout overrides to ensure receipt prints correctly */
+@media print {
+    html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+    /* Force parchment to be positioned for print (no offsets) */
+    .parchment { position: static !important; top: 0 !important; left: 0 !important; margin: 0 !important; padding: 3mm 6mm !important; width: 80mm !important; box-sizing: border-box !important; height: auto !important; overflow: visible !important; font-size: 12px !important; line-height: 1.25 !important; }
+    /* Make letter text readable on receipt */
+    .parchment .letter-text, #letterText { font-size: 12px !important; line-height: 1.25 !important; }
+    /* Ensure preview wrapper fits 80mm */
+    #printPreview, #printPreview .print-preview-bg { width: 80mm !important; max-width: 80mm !important; left: 0 !important; right: 0 !important; margin: 0 auto !important; }
+    /* Hide UI controls on print */
+    .no-print, .btn-large, .btn-small, button, .help-btn, .modal, .pinpad-btn, .admin-screen, .screen:not(#letterScreen) { display: none !important; }
 }
 
 /* Admin panel */

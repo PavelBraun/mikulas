@@ -12,22 +12,22 @@
         .pinpad-btn:hover { opacity: 0.7; }
         .pinpad-btn:active { transform: translateY(1px); }
         /* Tisk: skrýt ovládací prvky a tlačítka; tisknout pouze dopis, bez pozadí */
-        @page { size: auto; margin: 12mm; }
+        @page { }
         @media print {
             /* Reset výchozího layoutu pro tisk */
-            html, body { height: 100% !important; margin: 0 !important; padding: 0 !important; background: none !important; }
+            html, body { margin: 0 !important; padding: 0 !important; background: none !important; }
 
             /* Skryjeme vše, co není dopis */
             .no-print, .btn-large, .btn-small, button, .help-btn, .modal, .pinpad-btn, .admin-screen, .screen:not(#letterScreen) { display: none !important; }
 
             /* Zajistíme, že letterScreen zabere celou stránku a obsah bude centrován */
-            #letterScreen { display: block !important; min-height: 100vh !important; box-sizing: border-box !important; }
-            #letterScreen .content { display: flex !important; align-items: center !important; justify-content: center !important; height: 100% !important; margin: 0 !important; }
+            #letterScreen { display: block !important; }
+            #letterScreen .content { display: flex !important; align-items: flex-start !important; height: 100% !important; margin: 0 !important; }
 
             /* Pergamen bude formátován jako účtenka: šířka 80mm, menší padding a fonty; vycentrováno horizontálně, nahoře vertikálně */
-            @page { size: 80mm auto; margin: 6mm; }
-            #letterScreen .content { display: flex !important; align-items: flex-start !important; justify-content: center !important; height: 100% !important; }
-            .parchment { box-shadow: none !important; background: #fff !important; width: 80mm !important; max-width: 80mm !important; padding: 6mm !important; margin: 0 auto !important; font-size: 11px !important; line-height: 1.2 !important; }
+            @page {}
+            #letterScreen .content { display: flex !important; align-items: flex-start !important; }
+            .parchment { box-shadow: none !important; background: #fff !important; width: 100% !important; margin: 0 auto !important; font-size: 11px !important; line-height: 1.2 !important; }
 
             /* Pokud chceš jinou šířku účtenky, uprav parametry width/padding výše */
 
@@ -63,7 +63,10 @@
     <div id="welcomeScreen" class="screen active" style="background-image: url('images/bg-welcome.png')">
         <div class="content">
             <h1>Vítej!</h1>
-            <button onclick="app.goToPin()" class="btn-large">Začít</button>
+            <div style="display:flex; gap:20px; align-items:center; justify-content:center;">
+                <button onclick="app.goToPin()" class="btn-large">START</button>
+                <button onclick="app.startImagePinDirect()" class="btn-large image-icon-btn" title="Obrázkové PIN" style="padding:12px; width:84px; height:84px; display:flex; align-items:center; justify-content:center;"><img src="images/i-kachnicka.png" style="width:64px;height:64px;object-fit:contain;"></button>
+            </div>
         </div>
     </div>
 
@@ -80,23 +83,32 @@
         </div>
     </div>
 
-    <!-- Kolo štěstí -->
-    <div id="wheelScreen" class="screen" style="background-image: url('images/bg-kolo.png')">
+    <!-- PIN obrazovka obrazkova pro male deti -->
+    <div id="pinImageScreen" class="screen" style="background-image: url('images/bg-pin.png');">
         <div class="content">
-            <canvas id="wheelCanvas" width="600" height="600"></canvas>
-            <div class="loading-container">
-                <div class="loading-text">Hledám ve svých poznámkách...</div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
+            <div style="margin-bottom:8px;">
+                <div id="imageLastPressed" style="font-size:48px; height:56px; line-height:56px; color:white; text-shadow:1px 1px #000;">&nbsp;</div>
             </div>
-            <button onclick="app.spinWheel()" id="spinButton" class="btn-large" style="display: none;">Roztočit</button>
+            <div class="pin-inputs" id="imagePinDots" style="margin-bottom:16px;">
+                <span class="pin-digit">&nbsp;</span>
+                <span class="pin-digit">&nbsp;</span>
+                <span class="pin-digit">&nbsp;</span>
+                <span class="pin-digit">&nbsp;</span>
+            </div>
+            <div id="imagePinGrid" style="display:grid; grid-template-columns:repeat(3,160px); gap:10px; justify-content:center;">
+                <!-- Buttons rendered by JS with images mapping to digits 1-9 -->
+            </div>
+            <div style="display:flex; gap:12px; justify-content:center; margin-top:12px;">
+                <button class="btn-large continue" id="imagePinCancel">Zrušit</button>
+            </div>
         </div>
     </div>
 
+
+
     <!-- Dopis na pergamenu -->
     <div id="letterScreen" class="screen" style="background-image: url('images/bg-letter.png')">
-        <button id="printButton" class="btn-small no-print" onclick="app.showPrintPreview()" style="position:absolute; right:20px; top:20px; z-index:2000; display: none;">Tisk</button>
+        <button id="printButton" class="btn-small no-print" onclick="app.showPrintPreview()" style="position:absolute; right:20px; top:20px; z-index:2000; display:none;">Tisk</button>
         <button class="secret-regenerate-btn" onclick="app.regenerateContent()"></button>
         <div class="content">
             <div class="parchment">
@@ -106,6 +118,20 @@
         </div>
     </div>
 
+    <!-- Wheel / Wait screen with progress bar (restored) -->
+    <div id="wheelScreen" class="screen" style="background-image: url('images/bg-kolo.png')">
+        <div class="content">
+                <div class="loading-container">
+                    <div class="loading-text">Hledám ve svých poznámkách...</div>
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
+                    </div>
+                </div>
+        </div>
+    </div>
+
+    <!-- (waitScreen addition cancelled) -->
+
     <!-- Print preview lightbox -->
     <div id="printPreview" class="modal no-print" style="display:none; align-items:center; justify-content:center;">
         <div class="print-preview-content" style="position:relative; width:820px; max-width:95%;">
@@ -114,8 +140,9 @@
                 </div>
             </div>
             <div style="position:absolute; right:12px; top:12px; display:flex; gap:8px;">
-                <button class="btn-small" onclick="app.printPreview();">Tisk</button>
+                <button class="btn-small" onclick="app.printPreview();" style="display:none;">Tisk</button>
                 <button class="btn-small" onclick="app.closePrintPreview();">Zavřít</button>
+                <button class="btn-small" onclick="app.savePreviewPdf();" style="display:none;">Uložit PDF</button>
             </div>
         </div>
     </div>
@@ -139,6 +166,7 @@
             <button type="button" id="resetDataBtn" class="btn-large continue btn-danger">🗑️ Začít znovu</button>
             <button type="button" id="soundToggle" class="btn-large continue">Zvuk ON</button>
             <button type="button" id="autoPrintToggle" class="btn-large continue">AutoTisk ON</button>
+            <button type="button" id="hotfolderToggle" class="btn-large continue">Použít hotfolder OFF</button>
                 
             <div class="admin-tabs">
                 <button class="admin-tab-btn" id="tab-names" onclick="app.switchAdminTab('names')">Jména</button>
@@ -149,7 +177,8 @@
                 <!-- Dynamicky generováno JS -->
             </div>
             <div class="admin-controls" style="margin-top:12px; display:flex; gap:8px; align-items:center;">
-                
+                <button type="button" id="simulatePrintToggle" class="btn-large continue">Simulate Print OFF</button>
+                <button type="button" id="printerDebugBtn" class="btn-small" onclick="devPrintDebug()">Debug Printers</button>
             </div>
             <button onclick="app.closeAdmin()" class="btn-large continue">Zavřít administraci</button>
         </div>
@@ -269,3 +298,6 @@
 
     <script src="app.js"></script>
 </html>
+
+<!-- Toast container for small notifications -->
+<div id="toast" style="position:fixed; left:50%; transform:translateX(-50%); bottom:24px; background:rgba(0,0,0,0.8); color:#fff; padding:8px 14px; border-radius:6px; display:none; z-index:3000; font-size:14px;"></div>

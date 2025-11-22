@@ -41,6 +41,24 @@ Tato aplikace slouží k zobrazení personalizovaných dopisů od Mikuláše pro
 - `1231` — štěstíčko
 - `4564` — vtipný režim
 
+## Obrázkový PIN (pro malé děti)
+- Aplikace podporuje nový režim zadávání PINu pomocí obrázků (3×3 grid). Obrázky jsou v `images/` a mají prefix `i-`.
+- Na úvodní obrazovce je vedle tlačítka `START` nové tlačítko s ikonou (kachničky) — pokud jej stisknete, přejdete přímo do obrazkového režimu.
+- V přímém obrazkovém režimu stačí dítěti nechat zmáčknout libovolnou sekvenci 4 obrázků. Pokud sekvence odpovídá některému existujícímu číselnému PINu nebo speciálnímu PINu (viz výše), aplikace se chová jako při číselném zadání (např. `4564` spustí vtip, `9989` otevře administraci). Pokud sekvence neodpovídá žádnému záznamu, aplikace vytvoří dočasný záznam a pokračuje na dopis (chování stejné jako při běžném PINu).
+
+## Timeouty a bezpečné návraty na úvod
+- Aplikace nyní centralizovaně sleduje aktivní `setTimeout`/`setInterval` volání a při návratu na úvodní obrazovku (`welcome`) se všechny aktivní časovače ruší. To zabraňuje tomu, aby zbylé timeouty z předchozích obrazovek náhle spustily neočekávané akce.
+- Pokud během testování pozorujete, že se stránka „vytimeoutuje“ nebo dojde k neočekávanému návratu na úvod, restartujte aplikaci přes tlačítko `START` a problém se vyřeší — případně pošlete denní journal a konzolový výpis.
+
+## Testování speciálních PINů přes obrázky
+- Zadejte numericky `4564` — mělo by se zobrazit vtip.
+- Stiskněte ikonku kachničky → v obrazkovém režimu stiskněte čtyři obrázky odpovídající číslům `4`,`5`,`6`,`4` — aplikace by měla také spustit vtip.
+- Stejně lze otestovat admin PIN `9989` (obrázkově nebo číselně) — měl by otevřít administraci.
+
+## Hotfolder / tisk (shrnutí)
+- Pokud je povolen hotfolder režim, aplikace vygeneruje rasterizovaný obrázek účtenky a pošle jej na lokální save server (`http://127.0.0.1:3333/save`). Ten uloží soubor do `C:\temp\mikulas\hotfolder` a `hotfolder-printer.ps1` jej vyzvedne a vytiskne.
+- Logování a denní journaly naleznete v `C:\temp\mikulas\logs\YYYYMMDD.jrn` a v projektu `logs/` složce.
+
 ## Ovládání
 - Enter — potvrzení na obrazovkách s jedním tlačítkem
 - Mezerník — tajný kód na PIN obrazovce

@@ -1,15 +1,159 @@
 const signature = '~Mikuláš a spol.';
 let awardText = true;
+// Name of the kiosk printer (provided by user)
+const KIOSK_PRINTER_NAME = 'Diebold Nixdorf TP31';
+
+// Track all timers/intervals so we can clear them when returning to welcome screen
+(function(){
+    try {
+        const _setTimeout = window.setTimeout.bind(window);
+        const _clearTimeout = window.clearTimeout.bind(window);
+        const _setInterval = window.setInterval.bind(window);
+        const _clearInterval = window.clearInterval.bind(window);
+        window.__trackedTimeouts = new Set();
+        window.__trackedIntervals = new Set();
+        window.setTimeout = function(fn, ms, ...args) {
+            const id = _setTimeout(fn, ms, ...args);
+            try { window.__trackedTimeouts.add(id); } catch(e){}
+            return id;
+        };
+        window.clearTimeout = function(id) { try { window.__trackedTimeouts.delete(id); } catch(e){}; return _clearTimeout(id); };
+        window.setInterval = function(fn, ms, ...args) {
+            const id = _setInterval(fn, ms, ...args);
+            try { window.__trackedIntervals.add(id); } catch(e){}
+            return id;
+        };
+        window.clearInterval = function(id) { try { window.__trackedIntervals.delete(id); } catch(e){}; return _clearInterval(id); };
+        window.clearAllTrackedTimers = function() {
+            try {
+                for (const id of Array.from(window.__trackedTimeouts)) { _clearTimeout(id); window.__trackedTimeouts.delete(id); }
+                for (const id of Array.from(window.__trackedIntervals)) { _clearInterval(id); window.__trackedIntervals.delete(id); }
+            } catch(e) {}
+        };
+    } catch(e) {}
+})();
+
+    // Simple auto-print logger to centralize logs
+function _autoLog(...args) {
+    try {
+        const prefix = '[AUTOPRINT]';
+        console.log(prefix, ...args);
+    } catch (e) {}
+}
 
 // Aplikace Mikuláš
 const app = {
     // ---- Audio feedback (beep) pomocí WebAudio ----
     _audioCtx: null,
-    // Správa zapnutí/vypnutí zvukových efektů
+    // Is sound enabled (stored in localStorage)
     isSoundEnabled() {
-        const v = localStorage.getItem('mikulas_sound_enabled');
-        if (v === null) return true; // default enabled
-        return v === '1';
+        try {
+            const v = localStorage.getItem('mikulas_sound_enabled');
+            if (v === null) return true;
+            return v === '1';
+        } catch (e) { return true; }
+    },
+    // Správa zapnutí/vypnutí zvukových efektů
+    async _buildInlinedPrintHtml() {
+        try {
+            const previewLetter = document.getElementById('printPreviewLetter');
+            if (!previewLetter) return this._buildPrintHtmlForPreview();
+            const letterNode = previewLetter.querySelector('.parchment') || previewLetter.querySelector('*');
+            if (!letterNode) return this._buildPrintHtmlForPreview();
+
+            const clone = letterNode.cloneNode(true);
+
+            // Inline computed styles but skip font-size and transform so template CSS controls them
+            function inlineStyles(element) {
+                try {
+                    const cs = window.getComputedStyle(element);
+                    let styleStr = '';
+                    for (let i = 0; i < cs.length; i++) {
+                        const prop = cs[i];
+                        // skip problematic properties
+                        if (prop === 'font-size' || prop === 'transform' || prop === 'position' || prop.indexOf('margin') === 0 || prop === 'top' || prop === 'left') continue;
+                        const val = cs.getPropertyValue(prop);
+                        styleStr += `${prop}:${val};`;
+                    }
+                    element.setAttribute('style', styleStr);
+                    // Adjust padding for parchment to reduce top margin
+                    if (element.classList.contains('parchment')) {
+                        element.style.padding = '0 4mm 6mm 6mm';
+                        element.style.marginTop = '-5mm';
+                    }
+                } catch (e) {}
+                Array.from(element.children || []).forEach(inlineStyles);
+            }
+
+            // Helper: try to fetch an element's src and convert to data URL; fallbackPath used if element is missing
+            async function toDataUrlMaybe(el, fallbackPath) {
+                try {
+                    if (el && el.src) return await toDataUrl(el.src);
+                    // fallback to provided path relative to page
+                    const baseHref = (window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1));
+                    const fallback = new URL(fallbackPath, baseHref).href;
+                    return await toDataUrl(fallback);
+                } catch (e) { return null; }
+            }
+
+            async function toDataUrl(path) {
+                try {
+                    const res = await fetch(path);
+                    if (!res.ok) throw new Error('fetch-failed');
+                    const blob = await res.blob();
+                    return await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                } catch (e) { return null; }
+            }
+
+            const headerData = await toDataUrlMaybe(headerEl, 'images/bg-print-header.png');
+            const footerData = await toDataUrlMaybe(footerEl, 'images/bg-print-footer.png');
+
+            const headerHtml = headerData ? `<div class="print-header"><img src="${headerData}" alt="header"></div>` : '';
+            const footerHtml = footerData ? `<div class="print-footer"><img src="${footerData}" alt="footer"></div>` : '';
+
+            _autoLog('Print assets embedded - header present:', !!headerData, 'footer present:', !!footerData);
+
+            const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta charset="utf-8"><title>Mikuláš - Print</title><style>
+                @page { size: 240mm auto; margin: 0; }
+                html,body{margin:0;padding:0;background:#fff;color:#000}
+                body{font-family: 'Segoe UI', Roboto, Arial, sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; zoom:1; transform:none; -webkit-transform:none}
+                .print-wrapper{margin:0 auto; box-sizing:border-box; padding:0; overflow:visible}
+                .print-header img, .print-footer img{display:block;width:95%;height:auto;margin:0;padding:0}
+                .parchment{font-size:14pt !important; line-height:1.25 !important; width:calc(100% - 15px) !important; display:block !important; transform:scale(3) !important; transform-origin:top left !important; position:static !important; top:auto !important; left:auto !important; margin:0 !important; padding:0 4mm 6mm 6mm !important; overflow:visible !important}
+                img{width:100%; height:auto}
+            </style></head><body><div class="print-wrapper">${headerHtml}${clone.outerHTML}${footerHtml}</div></body></html>`;
+            return html;
+        } catch (e) { console.warn('_buildInlinedPrintHtml failed', e); return this._buildPrintHtmlForPreview(); }
+    },
+
+    // Simple PDF HTML builder as a fallback — keeps content visible without transforms
+    _buildPdfHtmlForPreview() {
+        try {
+            const previewLetter = document.getElementById('printPreviewLetter');
+            const baseHref = (window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1));
+            const headerEl = previewLetter ? previewLetter.querySelector('.print-preview-header-img') : null;
+            const footerEl = previewLetter ? previewLetter.querySelector('.print-preview-footer-img') : null;
+            const letterEl = previewLetter ? (previewLetter.querySelector('.parchment') || previewLetter.querySelector('*')) : document.querySelector('.parchment');
+            let headerHtml = '';
+            let footerHtml = '';
+            if (headerEl && headerEl.src) headerHtml = `<div class="print-header"><img src="${headerEl.src}" alt="header"></div>`;
+            if (footerEl && footerEl.src) footerHtml = `<div class="print-footer"><img src="${footerEl.src}" alt="footer"></div>`;
+            const contentHtml = letterEl ? letterEl.outerHTML : '<div class="parchment">(no content)</div>';
+            const html = `<!doctype html><html><head><base href="${baseHref}"><meta name="viewport" content="width=device-width, initial-scale=1"><meta charset="utf-8"><title>PDF Preview</title><style>
+                @page{margin:0}
+                html,body{height:100%;margin:0;padding:0}
+                body{font-family: 'Segoe UI', Roboto, Arial, sans-serif; color:#000; -webkit-print-color-adjust:exact; print-color-adjust:exact; zoom:1; transform:none; -webkit-transform:none}
+                .print-wrapper{width:100%;box-sizing:border-box;margin:0; padding:0; overflow:visible}
+                .print-header img,.print-footer img{width:100%;height:auto;display:block}
+                .parchment{font-size:13pt; line-height:1.25; width:100%; display:block; margin:0; padding:6mm; transform:none !important; position:static !important; overflow:visible}
+            </style></head><body><div class="print-wrapper">${headerHtml}${contentHtml}${footerHtml}</div></body></html>`;
+            return html;
+        } catch (e) { console.warn('_buildPdfHtmlForPreview failed', e); return '<html><body>Failed to build PDF preview</body></html>'; }
     },
     setSoundEnabled(val) {
         try {
@@ -26,6 +170,14 @@ const app = {
         try {
             localStorage.setItem('mikulas_auto_print', val ? '1' : '0');
         } catch (e) {}
+    },
+
+    // Hotfolder toggle stored in localStorage for admin
+    isHotfolderEnabled() {
+        try { const v = localStorage.getItem('mikulas_use_hotfolder'); return v === '1'; } catch(e){ return false; }
+    },
+    setHotfolderEnabled(val) {
+        try { localStorage.setItem('mikulas_use_hotfolder', val ? '1' : '0'); } catch(e){}
     },
     playBeep(duration = 80, frequency = 800, volume = 0.2) {
         if (!this.isSoundEnabled()) return;
@@ -108,6 +260,15 @@ const app = {
             setTimeout(() => { this.playBeep(80, f, 0.12); }, i * 90);
         });
     },
+    showToast(msg, ms = 3000) {
+        try {
+            const t = document.getElementById('toast');
+            if (!t) return;
+            t.textContent = msg;
+            t.style.display = 'block';
+            setTimeout(() => { try { t.style.display = 'none'; } catch(e){} }, ms);
+        } catch (e) { console.log('toast failed', e); }
+    },
     closeHelp() {
         document.getElementById('helpModal').classList.remove('active');
     },
@@ -115,14 +276,17 @@ const app = {
         document.getElementById('helpModal').classList.add('active');
     },
     // Print preview lightbox
-    showPrintPreview() {
-        try {
-            const preview = document.getElementById('printPreview');
-            const previewLetter = document.getElementById('printPreviewLetter');
-            if (!preview || !previewLetter) {
-                console.warn('Print preview elements missing', { previewExists: !!preview, previewLetterExists: !!previewLetter });
-                return;
-            }
+    // show === true -> display the preview as before
+    // show === false -> prepare preview DOM but keep it hidden (returns a Promise)
+    showPrintPreview(show = true) {
+        return new Promise((resolve) => {
+            try {
+                const preview = document.getElementById('printPreview');
+                const previewLetter = document.getElementById('printPreviewLetter');
+                if (!preview || !previewLetter) {
+                    _autoLog('Print preview elements missing', { previewExists: !!preview, previewLetterExists: !!previewLetter });
+                    return resolve(false);
+                }
             // Najdi originální pergamen a jeho uzel
             const orig = document.querySelector('.parchment');
             if (!orig) return;
@@ -139,7 +303,7 @@ const app = {
             headerImg.alt = 'print header';
             headerImg.style.display = 'block';
             headerImg.style.width = '100%';
-            headerImg.onerror = () => console.warn('Header image failed to load: images/bg-print-header.png');
+            headerImg.onerror = () => _autoLog('Header image failed to load: images/bg-print-header.png');
             // vytvoř footer img
             const footerImg = document.createElement('img');
             footerImg.className = 'print-preview-footer-img';
@@ -147,17 +311,23 @@ const app = {
             footerImg.alt = 'print footer';
             footerImg.style.display = 'block';
             footerImg.style.width = '100%';
-            footerImg.onerror = () => console.warn('Footer image failed to load: images/bg-print-footer.png');
+            footerImg.onerror = () => _autoLog('Footer image failed to load: images/bg-print-footer.png');
             // append header, clone, footer
             previewLetter.appendChild(headerImg);
             previewLetter.appendChild(clone);
             previewLetter.appendChild(footerImg);
             // Debug logging
-            console.log('Print preview prepared — inserting clone into previewLetter');
-            // Ensure it's visible even if inline styles exist
+            _autoLog('Print preview prepared — inserting clone into previewLetter');
+            // Show preview only if requested
             try {
-                preview.style.display = 'flex';
-                preview.classList.add('active');
+                if (show) {
+                    preview.style.display = 'flex';
+                    preview.classList.add('active');
+                } else {
+                    // ensure hidden but present in DOM
+                    preview.style.display = 'none';
+                    preview.classList.remove('active');
+                }
             } catch (err) {
                 console.warn('Failed to set preview display/style', err);
             }
@@ -170,44 +340,179 @@ const app = {
                     // extract URL
                     const m = /url\(["']?(.*?)["']?\)/.exec(bg);
                     if (m && m[1]) {
-                        img.onload = () => console.log('Print background image loaded:', m[1]);
-                        img.onerror = () => console.warn('Print background image failed to load:', m[1]);
+                        img.onload = () => {
+                            _autoLog('Print background image loaded:', m[1]);
+                            return resolve(true);
+                        };
+                        img.onerror = () => {
+                            _autoLog('Print background image failed to load:', m[1]);
+                            return resolve(true);
+                        };
                         img.src = m[1];
                     } else {
-                        console.warn('Could not parse print preview background URL from CSS:', bg);
+                        _autoLog('Could not parse print preview background URL from CSS:', bg);
+                        return resolve(true);
                     }
                 } else {
-                    console.warn('No print preview background set (print-preview-bg not found or backgroundImage none)');
+                    _autoLog('No print preview background set (print-preview-bg not found or backgroundImage none)');
+                    return resolve(true);
                 }
             } catch (err) {
-                console.warn('Background image check failed', err);
+                _autoLog('Background image check failed', err);
+                return resolve(true);
             }
-        } catch (e) { console.warn('showPrintPreview failed', e); }
+            // If we reach here and didn't resolve via image handlers, resolve immediately
+            return resolve(true);
+        } catch (e) { _autoLog('showPrintPreview failed', e); return resolve(false); }
+        });
+    },
+
+    // Render current letter into a JPEG and send to local save server (hotfolder)
+    async saveLetterAsImageAndSend() {
+        try {
+            // mm -> px at 300 DPI
+            const DPI = 300;
+            const mmToPx = (mm) => Math.round(mm * DPI / 25.4);
+            const widthMm = 80;
+            const heightMm = 80 * 3; // 1:3 ratio
+            const w = mmToPx(widthMm);
+            const h = mmToPx(heightMm);
+
+            // Find elements: header, footer, letter content, signature
+            const headerEl = document.querySelector('.print-preview-header-img') || null;
+            const footerEl = document.querySelector('.print-preview-footer-img') || null;
+            const orig = document.querySelector('.parchment') || document.querySelector('*');
+            if (!orig) { _autoLog('No letter content found for image generation'); return false; }
+
+            // Helper to fetch image and convert to data URL
+            async function fetchDataUrl(src) {
+                try {
+                    const res = await fetch(src);
+                    if (!res.ok) throw new Error('fetch failed');
+                    const blob = await res.blob();
+                    return await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                } catch (e) { return null; }
+            }
+
+            const headerData = headerEl && headerEl.src ? await fetchDataUrl(headerEl.src) : await fetchDataUrl('images/bg-print-header.png');
+            const footerData = footerEl && footerEl.src ? await fetchDataUrl(footerEl.src) : await fetchDataUrl('images/bg-print-footer.png');
+            // signature image path guessed - adjust if different
+            const sigData = await fetchDataUrl('images/mikulas-signature.png') || null;
+
+            // Clone content and inline basic styles
+            const clone = orig.cloneNode(true);
+            function inlineStyles(el) {
+                try {
+                    const cs = window.getComputedStyle(el);
+                    let s = '';
+                    for (let i = 0; i < cs.length; i++) {
+                        const p = cs[i];
+                        if (p === 'position' || p === 'top' || p === 'left') continue;
+                        s += `${p}:${cs.getPropertyValue(p)};`;
+                    }
+                    el.setAttribute('style', s);
+                } catch (e) {}
+                Array.from(el.children || []).forEach(inlineStyles);
+            }
+            inlineStyles(clone);
+
+            // Build HTML content for foreignObject
+            const headerHtml = headerData ? `<div style="text-align:center;margin-bottom:4mm;"><img src="${headerData}" style="width:100%;height:auto;display:block"></div>` : '';
+            const footerHtml = footerData ? `<div style="text-align:center;margin-top:4mm;"><img src="${footerData}" style="width:100%;height:auto;display:block"></div>` : '';
+            const sigHtml = sigData ? `<div style="margin-top:6mm;text-align:right;"><img src="${sigData}" style="width:40%;height:auto;display:inline-block"></div>` : '';
+
+            const wrapperStyle = `width:${w}px;height:${h}px;box-sizing:border-box;padding:6mm;background:#fff;color:#000;font-family:Segoe UI, Roboto, Arial, sans-serif;`;
+            const innerHtml = `<div xmlns='http://www.w3.org/1999/xhtml' style='${wrapperStyle}'>${headerHtml}${clone.outerHTML}${sigHtml}${footerHtml}</div>`;
+
+            // Build SVG with foreignObject
+            const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>\n<foreignObject width='100%' height='100%'>${innerHtml}</foreignObject>\n</svg>`;
+
+            const img = new Image();
+            const svg64 = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+            await new Promise((resolve, reject) => {
+                img.onload = resolve; img.onerror = reject; img.src = svg64;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,w,h);
+            ctx.drawImage(img, 0, 0, w, h);
+
+            const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+            const base64 = jpegDataUrl.replace(/^data:image\/jpeg;base64,/, '');
+
+            // filename YYYYMMDD_mikulas_HHMMSS.jpg
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const fn = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_mikulas_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.jpg`;
+
+            // POST to local server
+            try {
+                const res = await fetch('http://127.0.0.1:3333/save', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ filename: fn, data: base64 })
+                });
+                const json = await res.json();
+                if (json && json.ok) {
+                    _autoLog('Saved image to hotfolder:', json.path);
+                    return true;
+                } else {
+                    _autoLog('Save server returned error', json);
+                    return false;
+                }
+            } catch (e) { _autoLog('Could not POST to save server', e); return false; }
+
+        } catch (e) { console.warn('saveLetterAsImageAndSend failed', e); return false; }
     },
     closePrintPreview() {
         try {
             const preview = document.getElementById('printPreview');
             if (!preview) return;
-            console.log('Closing print preview');
+            _autoLog('Closing print preview');
             preview.classList.remove('active');
-            try { preview.style.display = 'none'; } catch(e) { console.warn('Failed to hide preview', e); }
-        } catch (e) { console.warn('closePrintPreview failed', e); }
+            try { preview.style.display = 'none'; } catch(e) { _autoLog('Failed to hide preview', e); }
+        } catch (e) { _autoLog('closePrintPreview failed', e); }
     },
     // Print the preview lightbox content (opens a new window with the preview and calls print)
     printPreview(options = {}) {
-        const { autoClose = false, timeout = 1500 } = options;
+        const { autoClose = false, timeout = 1500, silent = false } = options;
         return new Promise((resolve) => {
             try {
+                // If silent printing requested: build an inlined HTML and attempt iframe print.
+                if (silent) {
+                    // Browser: true silent printing isn't available. We'll build an inlined HTML and attempt iframe print.
+                    try {
+                        this._buildInlinedPrintHtml().then((html) => {
+                            // create a hidden iframe and print it (may show dialog depending on browser settings)
+                            try {
+                                const iframe = document.createElement('iframe');
+                                iframe.style.position = 'fixed'; iframe.style.right = '100%'; iframe.style.width = '0px'; iframe.style.height = '0px'; iframe.style.border = '0'; iframe.style.overflow = 'hidden'; iframe.setAttribute('aria-hidden', 'true');
+                                document.body.appendChild(iframe);
+                                const w = iframe.contentWindow; const doc = w.document;
+                                doc.open(); doc.write(html); doc.close();
+                                setTimeout(() => { try { w.focus && w.focus(); w.print && w.print(); } catch(e) { _autoLog('iframe.print failed', e); } setTimeout(() => { try { document.body.removeChild(iframe); } catch(e) {} }, 800); }, 300);
+                                resolve(true);
+                            } catch (e) { console.warn('iframe silent fallback failed', e); resolve(false); }
+                        }).catch((err) => { console.warn('buildInlinedPrintHtml failed', err); resolve(false); });
+                    } catch (e) { console.warn('silent print path failed', e); resolve(false); }
+                    return;
+                }
             const preview = document.getElementById('printPreview');
             const previewLetter = document.getElementById('printPreviewLetter');
             if (!preview || !previewLetter) {
-                console.warn('printPreview: preview elements missing');
+                _autoLog('printPreview: preview elements missing');
                 resolve(false);
                 return;
             }
             // Find the parchment (letter) inside the preview specifically
             const orig = previewLetter.querySelector('.parchment') || previewLetter.querySelector('*') || document.querySelector('.parchment');
-            if (!orig) { console.warn('printPreview: no content to print'); return; }
+            if (!orig) { _autoLog('printPreview: no content to print'); return; }
 
             // Clone the node to avoid mutations
             const clone = orig.cloneNode(true);
@@ -265,23 +570,26 @@ const app = {
             const head = `
                 <head>
                     <base href="${baseHref}">
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
                     <meta charset="utf-8">
                     <title>Mikuláš - Tisk</title>
                     <style>
                         /* Print on 80mm receipt paper */
-                        @page { size: 80mm auto; margin: 0; }
-                        html,body{margin:0;padding:0;height:100%;background:#fff;}
+                        @page {margin: 0; }
+                        html,body{margin:0;padding:0;}
+                        body{zoom:1; transform:none; -webkit-transform:none}
                         .print-container{display:flex;align-items:flex-start;justify-content:center;padding:0;margin:0;background:#fff;}
-                        /* wrapper is fixed to 80mm and clips overflow to ensure header/footer do not bleed */
-                        .print-wrapper{width:80mm;max-width:80mm;background:#fff;margin:0;padding:0;overflow:hidden;box-sizing:border-box;outline:1px dashed rgba(0,0,0,0.08);} 
-                        .print-header, .print-footer{width:100%;margin:0;padding:0;overflow:hidden;box-sizing:border-box;outline:1px dashed rgba(0,0,0,0.08);} 
+                        /* wrapper is slightly narrower than full 80mm to avoid right-edge cutoff */
+                        .print-wrapper{width:90%;margin:0;padding:0;overflow:hidden;} 
+                        .print-header, .print-footer{width:100%;margin:0;padding:0;overflow:hidden;} 
                         /* header/footer images fill the wrapper exactly and preserve aspect ratio */
-                        .print-header img, .print-footer img{display:block;width:100%;height:auto;margin:0;padding:0;border:0;max-width:80mm;}
-                        .print-letter{width:100%;margin:0;padding:20px;box-sizing:border-box;}
-                        img{display:block;max-width:100%;}
+                        .print-header img, .print-footer img{display:block;width:95%;height:auto;margin:0;padding:0;border:0;}
+                        .print-letter{width:100%;margin:0;padding:20px 8px 20px 12px;}
+                        img{display:block;width:95%;}
                         body *{box-sizing:border-box;}
                     </style>
                 </head>`;
+            _autoLog('Print assets - header:', headerUrl, 'footer:', footerUrl);
             const headerHtml = headerUrl ? `<div class="print-header"><img src="${headerUrl}" alt="header"></div>` : '';
             const footerHtml = footerUrl ? `<div class="print-footer"><img src="${footerUrl}" alt="footer"></div>` : '';
             const body = `<body><div class="print-container"><div class="print-wrapper">${headerHtml}<div class="print-letter"></div>${footerHtml}</div></div></body>`;
@@ -307,7 +615,7 @@ const app = {
                 }
                 // Force a reflow so hiding is rendered before print dialog appears
                 try { void document.body.offsetHeight; } catch(e){}
-            } catch (e) { console.warn('Could not hide on-screen print controls', e); }
+            } catch (e) { _autoLog('Could not hide on-screen print controls', e); }
 
             // Wait for images in the iframe document to load before printing
             const callPrint = () => {
@@ -334,7 +642,7 @@ const app = {
                                     const modalBtns = document.querySelectorAll('#printPreview .btn-small');
                                     modalBtns.forEach((b, i) => { try { b.style.display = uiState.modalBtnDisplays[i] || ''; } catch(e){} });
                                 }
-                            } catch(e) { console.warn('Could not restore print UI', e); }
+                            } catch(e) { _autoLog('Could not restore print UI', e); }
                             resolve(true);
                         }, 500);
                     } else {
@@ -354,16 +662,16 @@ const app = {
                                 const modalBtns = document.querySelectorAll('#printPreview .btn-small');
                                 modalBtns.forEach((b, i) => { try { b.style.display = uiState.modalBtnDisplays[i] || ''; } catch(e){} });
                             }
-                        } catch(e) { console.warn('Could not restore print UI', e); }
+                        } catch(e) { _autoLog('Could not restore print UI', e); }
                         resolve(true);
                     }
-                } catch (err) { console.warn('printPreview: print failed', err); try { document.body.removeChild(iframe); } catch(e){}; resolve(false); }
+                } catch (err) { _autoLog('printPreview: print failed', err); try { document.body.removeChild(iframe); } catch(e){}; resolve(false); }
             };
 
             try {
                 const imgs = Array.from(doc.images || []);
                 try {
-                    console.log('printPreview: iframe has images count=', imgs.length, 'srcs=', imgs.map(i => i.src));
+                    _autoLog('printPreview: iframe has images count=', imgs.length, 'srcs=', imgs.map(i => i.src));
                 } catch(e) {}
                 if (imgs.length === 0) {
                     // no images, print immediately
@@ -387,16 +695,169 @@ const app = {
                     setTimeout(() => { if (loaded < imgs.length) callPrint(); }, Math.max(1200, timeout));
                 }
             } catch (err) {
-                console.warn('printPreview: image wait failed', err);
+                _autoLog('printPreview: image wait failed', err);
                 setTimeout(callPrint, 300);
             }
-        } catch (e) { console.warn('printPreview failed', e); resolve(false); }
+        } catch (e) { _autoLog('printPreview failed', e); resolve(false); }
         });
     },
 
-    finishLetterAndPrint() {
+    // Prepare preview invisibly and ask main process to generate a PDF saved to disk
+    savePreviewPdf() {
+        try {
+            // Prepare the preview DOM but keep it hidden
+            this.showPrintPreview(false).then((ok) => {
+                try {
+                    // This build does not include a native PDF generation API.
+                    // Build the printable HTML and offer it as a download so operators
+                    // can inspect or print it manually if needed.
+                    const html = this._buildPdfHtmlForPreview();
+                    const blob = new Blob([html], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'mikulas_print_preview.html';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.showToast('Náhled uložen jako HTML pro tisk', 3500);
+                } catch (e) { console.warn('savePreviewPdf inner failed', e); }
+            }).catch((e) => { console.warn('savePreviewPdf: showPrintPreview failed', e); });
+        } catch (e) { console.warn('savePreviewPdf failed', e); }
+    },
+
+    // Small toast for user feedback
+    showToast(msg, ms = 2500) {
+        try {
+            const t = document.getElementById('toast');
+            if (!t) return;
+            t.textContent = msg;
+            t.style.display = 'block';
+            t.style.opacity = '0';
+            // fade-in
+            t.style.transition = 'opacity 180ms ease';
+            requestAnimationFrame(() => { t.style.opacity = '1'; });
+            setTimeout(() => {
+                t.style.opacity = '0';
+                setTimeout(() => { try { t.style.display = 'none'; } catch(e){} }, 220);
+            }, ms);
+        } catch (e) { console.warn('showToast failed', e); }
+    },
+
+    // Build an HTML string by cloning the prepared preview and inlining computed styles
+    _buildInlinedPrintHtml() {
+        try {
+            const previewLetter = document.getElementById('printPreviewLetter');
+            if (!previewLetter) return this._buildPrintHtmlForPreview();
+            // Find the letter node (parchment) inside preview
+            const letterNode = previewLetter.querySelector('.parchment') || previewLetter.querySelector('*');
+            if (!letterNode) return this._buildPrintHtmlForPreview();
+
+            // Deep clone
+            const clone = letterNode.cloneNode(true);
+
+            // Inline computed styles recursively
+            function inlineStyles(element) {
+                try {
+                    const cs = window.getComputedStyle(element);
+                    let styleStr = '';
+                    for (let i = 0; i < cs.length; i++) {
+                        const prop = cs[i];
+                        const val = cs.getPropertyValue(prop);
+                        // Avoid embedding long or dynamic properties that may break print layout
+                            styleStr += `${prop}:${val};`;
+                    }
+                    element.setAttribute('style', styleStr);
+                } catch (e) {}
+                Array.from(element.children || []).forEach(inlineStyles);
+            }
+            inlineStyles(clone);
+
+            // Ensure the clone is visible and not transformed (some CSS used transforms to crop)
+            try {
+                if (clone.style) {
+                    clone.style.transform = 'none';
+                    clone.style.width = '100%';
+                    clone.style.margin = '0';
+                }
+            } catch (e) {}
+
+            // Build header/footer (if present in preview)
+            const headerEl = previewLetter.querySelector('.print-preview-header-img') || previewLetter.querySelector('.print-header img');
+            const footerEl = previewLetter.querySelector('.print-preview-footer-img') || previewLetter.querySelector('.print-footer img');
+            // Determine asset URLs with fallback to known image paths
+            const baseHref = (window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1));
+            let headerUrl = headerEl && headerEl.src ? headerEl.src : null;
+            let footerUrl = footerEl && footerEl.src ? footerEl.src : null;
+            try {
+                if (!headerUrl) headerUrl = new URL('images/bg-print-header.png', baseHref).href;
+            } catch (e) { headerUrl = headerUrl || 'images/bg-print-header.png'; }
+            try {
+                if (!footerUrl) footerUrl = new URL('images/bg-print-footer.png', baseHref).href;
+            } catch (e) { footerUrl = footerUrl || 'images/bg-print-footer.png'; }
+            const headerHtml = headerUrl ? `<div class="print-header"><img src="${headerUrl}" alt="header"></div>` : '';
+            const footerHtml = footerUrl ? `<div class="print-footer"><img src="${footerUrl}" alt="footer"></div>` : '';
+
+            // Force print CSS: larger font, remove transforms/offsets and remove extra top spacing
+            const html = `<!doctype html><html><head><base href="${baseHref}"><meta charset="utf-8"><title>Mikuláš - Print</title><style>
+                @page{size:80mm auto; margin:0}
+                html,body{margin:0;padding:0;background:#fff;color:#000}
+                body{font-family: 'Segoe UI', Roboto, Arial, sans-serif; -webkit-font-smoothing:antialiased}
+                .print-wrapper{width:80mm; margin:0 auto; box-sizing:border-box; padding:0}
+                .print-header img, .print-footer img{display:block;width:100%;height:auto;margin:0;padding:0}
+                .parchment{font-size:13pt !important; line-height:1.2 !important; width:100% !important; display:block !important; transform:none !important; margin:0 !important; padding:6mm !important}
+                img{max-width:100%; height:auto}
+            </style></head><body><div class="print-wrapper">${headerHtml}${clone.outerHTML}${footerHtml}</div></body></html>`;
+            return html;
+        } catch (e) { console.warn('_buildInlinedPrintHtml failed', e); return this._buildPrintHtmlForPreview(); }
+    },
+
+    // Silent print helper: prints provided HTML inside a hidden iframe and removes it quickly
+    _silentPrint(htmlOrPromise, removeDelay = 1000) {
+        return new Promise(async (resolve) => {
+            try {
+                const html = typeof htmlOrPromise === 'string' ? htmlOrPromise : await htmlOrPromise;
+                if (!html) return resolve(false);
+                try {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.position = 'fixed'; iframe.style.right = '100%'; iframe.style.width = '0px'; iframe.style.height = '0px'; iframe.style.border = '0'; iframe.style.overflow = 'hidden'; iframe.setAttribute('aria-hidden', 'true');
+                    document.body.appendChild(iframe);
+                    const w = iframe.contentWindow; const doc = w.document;
+                    doc.open(); doc.write(html); doc.close();
+                    const cleanup = () => { try { if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe); } catch (e) {} };
+                    // If the iframe supports afterprint, use it to cleanup more reliably
+                    try {
+                        if (w && 'onafterprint' in w) {
+                            const _onap = () => { try { cleanup(); } catch (e) {} finally { try { w.removeEventListener('afterprint', _onap); } catch(e){} resolve(true); } };
+                            try { w.addEventListener('afterprint', _onap); } catch(e) { /* ignore */ }
+                        }
+                    } catch (e) { /* ignore */ }
+                    // Trigger print shortly after resources settle
+                    setTimeout(() => {
+                        try { w.focus && w.focus(); w.print && w.print(); } catch (e) { _autoLog('_silentPrint iframe.print failed', e); }
+                        setTimeout(cleanup, removeDelay);
+                        // resolve even if afterprint isn't supported
+                        resolve(true);
+                    }, 300);
+                } catch (e) { _autoLog('_silentPrint iframe setup failed', e); return resolve(false); }
+            } catch (e) { _autoLog('_silentPrint failed to build html', e); return resolve(false); }
+        });
+    },
+
+    async finishLetterAndPrint() {
+        if (this.isPrinting) {
+            _autoLog('finishLetterAndPrint: already printing, skipping');
+            return;
+        }
+        this.isPrinting = true;
         // Called when user finishes viewing the letter. Prepare print window and auto-print, then continue.
         try {
+            // If auto-print disabled, skip printing and go to goodbye immediately
+            if (!this.isAutoPrintEnabled()) {
+                try { this.goToGoodbye(); } catch(e){}
+                return;
+            }
             // Ensure the previewLetter is prepared (but do not show the modal)
             const previewLetter = document.getElementById('printPreviewLetter');
             if (!previewLetter) {
@@ -409,17 +870,157 @@ const app = {
                 const pb = document.getElementById('printButton');
                 if (pb) { pb.dataset._prevDisplay = pb.style.display || ''; pb.style.display = 'none'; }
             } catch(e) { console.warn('Could not hide printButton before printing', e); }
-            // If auto-print disabled, skip printing and go to goodbye immediately
-            if (!this.isAutoPrintEnabled()) {
+            // Immediately navigate to goodbye so user doesn't wait for printing to finish
+            try { this.goToGoodbye(); } catch(e) { console.warn('goToGoodbye failed', e); }
+            
+            // If hotfolder mode is enabled in admin, generate JPG and send to hotfolder instead of printing in browser
+            if (this.isHotfolderEnabled()) {
+                try {
+                    _autoLog('Hotfolder mode enabled: generating image and sending to hotfolder');
+                    const ok = await this.saveLetterAsImageAndSend();
+                    if (!ok) _autoLog('Hotfolder save failed, falling back to normal print');
+                } catch (e) { _autoLog('Hotfolder flow failed', e); }
                 try { this.goToGoodbye(); } catch(e){}
                 return;
             }
-            // Call printPreview in autoClose mode and when done go to goodbye
-            this.printPreview({ autoClose: true, timeout: 2000 }).then((ok) => {
-                // proceed to goodbye screen regardless
-                try { this.goToGoodbye(); } catch(e){}
-            });
-        } catch (e) { console.warn('finishLetterAndPrint failed', e); this.goToGoodbye(); }
+
+            // Allow simulation of native print for local debugging (set localStorage simulateNativePrint = '1')
+            const simulate = localStorage.getItem('simulateNativePrint') === '1';
+            if (simulate) {
+                try {
+                    _autoLog('finishLetterAndPrint: simulate native print active');
+                    const html = this._buildPrintHtmlForPreview();
+                    // Browser fallback: open hidden iframe and print (may show dialog depending on browser)
+                    try {
+                        const iframe = document.createElement('iframe');
+                        iframe.style.position = 'fixed'; iframe.style.right = '100%'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0'; iframe.setAttribute('aria-hidden','true'); document.body.appendChild(iframe);
+                        const w = iframe.contentWindow; const doc = w.document; doc.open(); doc.write(html); doc.close();
+                        setTimeout(() => { try { w.focus && w.focus(); w.print && w.print(); } catch(e) { _autoLog('iframe.print failed', e); } setTimeout(() => { try { document.body.removeChild(iframe); } catch(e){} }, 800); }, 100);
+                    } catch(e) { console.warn('simulate print iframe fallback failed', e); }
+                    try { this.goToGoodbye(); } catch(e){}
+                } catch (e) {
+                    console.warn('simulate native print failed', e);
+                    this.printPreview({ autoClose: true, timeout: 2000 }).then(() => { try { this.goToGoodbye(); } catch(e){} });
+                }
+            } else {
+                // Prefer using the built-in lightbox.print() flow for auto-print so behaviour matches manual print dialog.
+                // Prepare the preview hidden (not visible to user), activate in DOM with opacity 0, call lightbox.print(), wait for afterprint, then close and continue.
+                this.showPrintPreview(false).then(async (ok) => {
+                    if (!ok) {
+                        _autoLog('Auto-print: preview failed to prepare, falling back to iframe print');
+                        await this.printPreview({ autoClose: true, timeout: 2000 });
+                        try { this.goToGoodbye(); } catch(e){}
+                        return;
+                    }
+
+                    if (!this.isAutoPrintEnabled()) {
+                        await this.printPreview({ autoClose: true, timeout: 2000 });
+                        try { this.goToGoodbye(); } catch(e){}
+                        return;
+                    }
+
+                    _autoLog('Auto-print: preparing preview and initiating silent fire-and-forget print');
+
+                    // Insert autoprint override style
+                    try {
+                        const css = `@media print {
+                            @page {  margin: 0 }
+                            html,body,#printPreview { margin: 0 !important; height: auto !important; padding: 0 !important; }
+                            body * { visibility: hidden !important; }
+                            #printPreview, #printPreview * { visibility: visible !important; }
+                            #printPreview { display: block !important; position: relative !important; left: 0 !important; top: 0 !important; width: 100% !important; margin: 0 !important; }
+                            #printPreview .print-preview-bg { width: 80mm !important; max-width:80mm !important; margin:0 !important; padding:0 !important; box-shadow:none !important; background: #fff !important; }
+                            #printPreview .print-preview-bg .parchment { margin:0 !important; padding:3mm 6mm 6mm 6mm !important; box-shadow:none !important; width:100% !important; transform:none !important; position:static !important; }
+                            #printPreview .print-header img, #printPreview .print-footer img { display:block !important; width:100% !important; height:auto !important; }
+                        }`;
+                        const style = document.createElement('style');
+                        style.id = 'autoprint-override-style';
+                        style.appendChild(document.createTextNode(css));
+                        document.head.appendChild(style);
+                        _autoLog('Inserted comprehensive autoprint override style');
+                    } catch (e) { _autoLog('Could not insert autoprint override style', e); }
+
+                    // Mark autoprint started so fallback flows skip duplicate printing
+                    try { this._autoprintStarted = true; } catch(e){}
+
+                    // Fire-and-forget print (prefer lightbox.print)
+                    (async () => {
+                        try {
+                            if (window && window.lightbox && typeof window.lightbox.print === 'function') {
+                                try { window.lightbox.print(); _autoLog('Called lightbox.print() (silent, fire-and-forget)'); } catch(e) { _autoLog('lightbox.print threw (fire-and-forget)', e); }
+                            } else {
+                                try {
+                                    const html = await app._buildInlinedPrintHtml();
+                                    await app._silentPrint(html, 800);
+                                } catch (e) { _autoLog('autoprint iframe build failed', e); }
+                            }
+                        } catch (e) { _autoLog('Silent print fire-and-forget flow failed', e); }
+                    })();
+
+                    // Ensure preview is active but hidden to the user
+                    try {
+                        const embedPreviewImages = async () => {
+                            try {
+                                const baseHref = (window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1));
+                                const previewLetter = document.getElementById('printPreviewLetter');
+                                if (!previewLetter) return;
+                                const headerImg = previewLetter.querySelector('.print-preview-header-img') || previewLetter.querySelector('.print-header img');
+                                const footerImg = previewLetter.querySelector('.print-preview-footer-img') || previewLetter.querySelector('.print-footer img');
+                                async function toDataUrl(url) {
+                                    try {
+                                        const res = await fetch(url);
+                                        if (!res.ok) throw new Error('fetch-failed');
+                                        const blob = await res.blob();
+                                        return await new Promise((resolve, reject) => {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => resolve(reader.result);
+                                            reader.onerror = reject;
+                                            reader.readAsDataURL(blob);
+                                        });
+                                    } catch (e) { return null; }
+                                }
+                                if (headerImg && headerImg.src) {
+                                    const data = await toDataUrl(headerImg.src).catch(() => null);
+                                    if (data) headerImg.src = data;
+                                } else if (previewLetter) {
+                                    const h = previewLetter.querySelector('.print-header');
+                                    if (h && !h.querySelector('img')) {
+                                        const img = document.createElement('img'); img.className = 'print-preview-header-img'; img.src = new URL('images/bg-print-header.png', baseHref).href; h.insertBefore(img, h.firstChild);
+                                        try { const d = await toDataUrl(img.src); if (d) img.src = d; } catch(e){}
+                                    }
+                                }
+                                if (footerImg && footerImg.src) {
+                                    const data = await toDataUrl(footerImg.src).catch(() => null);
+                                    if (data) footerImg.src = data;
+                                } else if (previewLetter) {
+                                    const f = previewLetter.querySelector('.print-footer');
+                                    if (f && !f.querySelector('img')) {
+                                        const img = document.createElement('img'); img.className = 'print-preview-footer-img'; img.src = new URL('images/bg-print-footer.png', baseHref).href; f.appendChild(img);
+                                        try { const d = await toDataUrl(img.src); if (d) img.src = d; } catch(e){}
+                                    }
+                                }
+                            } catch (e) { _autoLog('embedPreviewImages failed', e); }
+                        };
+                        await embedPreviewImages();
+                        const preview = document.getElementById('printPreview');
+                        if (preview) {
+                            preview.dataset._prevDisplay = preview.style.display || '';
+                            preview.dataset._prevOpacity = preview.style.opacity || '';
+                            preview.dataset._prevPointer = preview.style.pointerEvents || '';
+                            preview.style.display = 'flex';
+                            preview.classList.add('active');
+                            preview.style.opacity = '0';
+                            preview.style.pointerEvents = 'none';
+                            _autoLog('Activated printPreview in DOM but kept invisible (opacity 0)');
+                        }
+                    } catch (e) { _autoLog('Could not activate hidden preview', e); }
+
+                    // Finally, move user to goodbye immediately
+                    try { this.goToGoodbye(); } catch(e) { _autoLog('goToGoodbye failed', e); }
+
+                }).catch(async () => { await this.printPreview({ autoClose: true, timeout: 2000 }); try { this.goToGoodbye(); } catch(e){} });
+            }
+        } catch (e) { _autoLog('finishLetterAndPrint failed', e); this.goToGoodbye(); }
     },
     exportNames() {
         const data = this.loadData();
@@ -443,7 +1044,7 @@ const app = {
         this.downloadCSV(csv, filename);
     },
     closeAdmin() {
-        this.showScreen('welcomeScreen');
+        this.goToWelcome();
     },
     exportBackup() {
         const data = this.loadData();
@@ -468,9 +1069,6 @@ const app = {
         this.renderAdminTable();
     },
     currentChild: null,
-    currentPrize: null,
-    wheelRotation: 0,
-    isSpinning: false,
     deleteQueue: null,
     sortColumn: null,
     sortDirection: 'asc',
@@ -646,6 +1244,60 @@ const app = {
         document.querySelector('.pin-digit').focus();
     },
 
+    // Show image-based PIN screen for very small children
+    goToImagePin(expectedParentPin) {
+        // expectedParentPin is the numeric PIN the parent entered (string)
+        this._expectedNumericPin = expectedParentPin; // store to compare later
+        // Build mapping of images to digits 1-9 from images folder
+        try {
+            console.log('goToImagePin: expectedParentPin=', expectedParentPin);
+            const grid = document.getElementById('imagePinGrid');
+            grid.innerHTML = '';
+            // Hardcoded list discovery based on images in /images starting with i-
+            const imgs = [
+                'i-auticko.png','i-domecek.png','i-letadlo.png',
+                'i-konicek.png','i-kocicka.png','i-kachnicka.png',
+                'i-jablicko.png','i-medvidek.png','i-pejsek.png'
+            ];
+            // mapping index -> filename
+            this._imagePinMap = {};
+            for (let i = 0; i < 9; i++) {
+                const fname = imgs[i] || '';
+                this._imagePinMap[(i+1).toString()] = fname;
+                const btn = document.createElement('button');
+                btn.className = 'pinpad-btn image-pin-btn';
+                btn.dataset.digit = (i+1).toString();
+                if (fname) {
+                    const img = document.createElement('img');
+                    img.src = 'images/' + fname;
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.objectFit = 'contain';
+                    btn.appendChild(img);
+                } else {
+                    btn.textContent = (i+1).toString();
+                }
+                grid.appendChild(btn);
+            }
+            // reset buffer
+            this._imagePinBuffer = '';
+            const dots = document.getElementById('imagePinDots');
+            if (dots) dots.querySelectorAll('.pin-digit').forEach(d => d.textContent = '•');
+            // clear last-pressed display
+            const last = document.getElementById('imageLastPressed'); if (last) last.textContent = '';
+            this.showScreen('pinImageScreen');
+            console.log('goToImagePin: rendered grid, map=', this._imagePinMap);
+        } catch (e) { console.warn('goToImagePin failed', e); }
+    },
+
+    // Start image-PIN flow directly (no parent numeric PIN). Child will enter images that map to digits.
+    startImagePinDirect() {
+        // We will treat this as if expectedParentPin is empty; on 4 presses we attempt to lookup the child directly
+        this._expectedNumericPin = null;
+        this._directImagePinLookup = true;
+        this.goToImagePin('');
+    },
+
     // Spustit vtipný režim (neviditelné tlačítko)
     triggerJoke() {
         const pinInputs = document.querySelectorAll('.pin-digit');
@@ -716,7 +1368,6 @@ const app = {
                 text: `Vítáme tě tady,\n\n${fortuneCookie}`
             };
             
-            this.showScreen('wheelScreen');
             this.startLoading();
             return;
         }
@@ -734,7 +1385,6 @@ const app = {
             };
             awardText = false;
             
-            this.showScreen('wheelScreen');
             this.startLoading();
             return;
         }
@@ -753,10 +1403,19 @@ const app = {
                 text: `Máme pro tebe vtip:\n\n${randomJoke}`
             };
             
-            this.showScreen('wheelScreen');
             this.startLoading();
             return;
         }
+
+        // If PIN starts with '2' we expect a parent-entered numeric PIN and then an image-entry by child
+        // But if we've just returned from an image-PIN flow, skip redirect to avoid loop
+        if (pin.length === 4 && pin[0] === '2' && !this._skipImageRedirect) {
+            // Redirect to image PIN screen; store expected numeric pin
+            this.goToImagePin(pin);
+            return;
+        }
+        // Clear the skip flag after using it once
+        this._skipImageRedirect = false;
 
         // Hledání dítěte
         const data = this.loadData();
@@ -764,7 +1423,6 @@ const app = {
 
         if (child) {
             this.currentChild = child;
-            this.showScreen('wheelScreen');
             this.startLoading();
         } else {
             // Animace PINpadu při chybě
@@ -786,147 +1444,7 @@ const app = {
             }, 1500);
         }
     },
-
-    // Načítání s progressbarem
-    startLoading() {
-        const progressFill = document.getElementById('progressFill');
-        progressFill.style.width = '0%';
-        
-        // Spustit animaci
-        setTimeout(() => {
-            progressFill.style.width = '100%';
-        }, 100);
-
-        // Po 3 sekundách přejít na dopis
-        setTimeout(() => {
-            this.generatePrize();
-            this.showLetter();
-        }, 3100);
-    },
-
-    // Vygenerovat náhodnou cenu
-    generatePrize() {
-        const randomIndex = Math.floor(Math.random() * this.prizes.length);
-        this.currentPrize = this.prizes[randomIndex];
-    },
-
-    // Inicializace kola
-    initWheel() {
-        const canvas = document.getElementById('wheelCanvas');
-        const ctx = canvas.getContext('2d');
-
-        this.wheelRotation = 0;
-        this.isSpinning = false;
-        document.getElementById('spinButton').disabled = false;
-        this.drawWheel(ctx);
-    },
-
-    // Vykreslení kola
-    drawWheel(ctx) {
-        const canvas = ctx.canvas;
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const radius = 250;
-        const segmentAngle = (Math.PI * 2) / this.prizes.length;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Vykreslení segmentů
-        this.prizes.forEach((prize, index) => {
-            const startAngle = this.wheelRotation + (index * segmentAngle) - Math.PI / 2;
-            const endAngle = startAngle + segmentAngle;
-
-            // Segment
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-            ctx.closePath();
-            ctx.fillStyle = prize.color;
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Text
-            ctx.save();
-            ctx.translate(centerX, centerY);
-            ctx.rotate(startAngle + segmentAngle / 2);
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 20px Tahoma';
-            ctx.fillText(prize.name, radius * 0.65, 0);
-            ctx.restore();
-        });
-
-        // Střed kola
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 30, 0, Math.PI * 2);
-        ctx.fillStyle = '#2c3e50';
-        ctx.fill();
-
-        // Šipka nahoře
-        ctx.beginPath();
-        ctx.moveTo(centerX, 30);
-        ctx.lineTo(centerX - 20, 70);
-        ctx.lineTo(centerX + 20, 70);
-        ctx.closePath();
-        ctx.fillStyle = '#e74c3c';
-        ctx.fill();
-        ctx.strokeStyle = '#c0392b';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-    },
-
-    // Roztočení kola
-    spinWheel() {
-        if (this.isSpinning) return;
-
-        this.isSpinning = true;
-        document.getElementById('spinButton').disabled = true;
-
-        const canvas = document.getElementById('wheelCanvas');
-        const ctx = canvas.getContext('2d');
-
-        const startRotation = this.wheelRotation;
-        const spins = 5 + Math.random() * 3; // 5-8 otočení
-        const randomAngle = Math.random() * Math.PI * 2;
-        const targetRotation = startRotation + (spins * Math.PI * 2) + randomAngle;
-
-        const duration = 5000;
-        const startTime = Date.now();
-
-        const animate = () => {
-            const currentTime = Date.now();
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-
-            // Easing
-            const easeProgress = 1 - Math.pow(1 - progress, 4);
-            this.wheelRotation = startRotation + (targetRotation - startRotation) * easeProgress;
-
-            this.drawWheel(ctx);
-
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                // Kolo zastaveno - zjistit výhru
-                this.wheelRotation = targetRotation;
-                this.drawWheel(ctx);
-
-                const segmentAngle = (Math.PI * 2) / this.prizes.length;
-                const normalizedRotation = ((this.wheelRotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-                const winningIndex = Math.floor(((-normalizedRotation + Math.PI / 2 + segmentAngle / 2) % (Math.PI * 2) + Math.PI * 2) / segmentAngle) % this.prizes.length;
-                
-                this.currentPrize = this.prizes[winningIndex];
-
-                setTimeout(() => {
-                    this.showLetter();
-                }, 500);
-            }
-        };
-
-        animate();
-    },
+    
 
     // Zobrazení dopisu
     showLetter() {
@@ -940,7 +1458,7 @@ const app = {
         // Odsazení třetího řádku pod nadpisem
         const lines = fullText.split('\n');
         if (lines.length > 2) {
-            lines[2] = '<span style="text-indent:2ch;display:inline-block;width:calc(100% - 2ch);">' + lines[2] + '</span>';
+            lines[2] = '<span style="text-indent:2ch;display:inline-block;width:calc(100% - 3ch);">' + lines[2] + '</span>';
         }
 
         const formattedText = lines.join('<br>');
@@ -956,6 +1474,45 @@ const app = {
         }
         
         this.showScreen('letterScreen');
+    },
+
+    // Start the loading/progress animation then show the letter after 2s
+    startLoading() {
+        try {
+            // Show wheel/loading screen with progress for 2s, then show letter
+            try {
+                // Defensive: hide/clear pinpad to prevent stray clicks or actions
+                try {
+                    const pinpadOverlay = document.getElementById('pinpadOverlay');
+                    if (pinpadOverlay) {
+                        pinpadOverlay.classList.remove('active');
+                        // clear any temporary pinpad buffer if present
+                        try { pinpadOverlay.querySelectorAll('.pin-digit').forEach(i => i.value = ''); } catch(e){}
+                    }
+                    // also clear any focused input
+                    try { document.activeElement && document.activeElement.blur && document.activeElement.blur(); } catch(e){}
+                } catch(e) {}
+
+                this.showScreen('wheelScreen');
+                const pf = document.getElementById('progressFill');
+                if (pf) {
+                    // reset and trigger CSS transition to 100%
+                    pf.style.transition = 'none';
+                    pf.style.width = '0%';
+                    // force reflow
+                    // eslint-disable-next-line no-unused-expressions
+                    pf.offsetWidth;
+                    pf.style.transition = 'width 2000ms linear';
+                    pf.style.width = '100%';
+                }
+                setTimeout(() => {
+                    try { this.showLetter(); } catch (e) { console.warn('showLetter failed after loading', e); }
+                }, 2000);
+            } catch (e) {
+                console.warn('startLoading inner failed', e);
+                try { this.showLetter(); } catch (ee) {}
+            }
+        } catch (e) { console.warn('startLoading failed', e); this.showLetter(); }
     },
 
     // Regenerovat obsah (vtipy nebo motivaci)
@@ -980,16 +1537,34 @@ const app = {
         }
     },
 
-    goToGoodbye() {
+    goToGoodbye(delayMs = 5000) {
+        this.isPrinting = false;
         try { this.playMagic(); } catch (e) {}
-        this.showScreen('goodbyeScreen');
+        try {
+            // Show goodbye immediately, then after delayMs return to welcome
+            this.showScreen('goodbyeScreen');
+            setTimeout(() => { try { this.goToWelcome(); } catch(e){} }, delayMs);
+        } catch (e) { this.showScreen('goodbyeScreen'); }
     },
 
     restart() {
         this.currentChild = null;
         this.currentPrize = null;
         awardText = true;
-        this.showScreen('welcomeScreen');
+        this.goToWelcome();
+    },
+
+    goToWelcome() {
+        try {
+            // clear tracked timers/intervals
+            try { if (window.clearAllTrackedTimers) window.clearAllTrackedTimers(); } catch(e){}
+            // reset some transient flags
+            this._directImagePinLookup = false;
+            this._imagePinBuffer = '';
+            this._expectedNumericPin = null;
+            // show welcome
+            this.showScreen('welcomeScreen');
+        } catch(e) { this.showScreen('welcomeScreen'); }
     },
 
     // Admin panel
@@ -1452,6 +2027,61 @@ const app = {
     // Načtení při načtení
 };
 
+// Ensure window.lightbox.print exists — lightweight shim that prints prepared preview
+try {
+    if (!window.lightbox) window.lightbox = {};
+    if (!window.lightbox.print || typeof window.lightbox.print !== 'function') {
+        window.lightbox.print = function lightboxPrintShim() {
+            (async () => {
+                try {
+                    _autoLog('lightbox.print shim: building inlined HTML');
+                    const html = await app._buildInlinedPrintHtml();
+                    // create hidden iframe
+                    const iframe = document.createElement('iframe');
+                    iframe.style.position = 'fixed';
+                    iframe.style.right = '100%';
+                    iframe.style.width = '0px';
+                    iframe.style.height = '0px';
+                    iframe.style.border = '0';
+                    iframe.style.overflow = 'hidden';
+                    iframe.setAttribute('aria-hidden', 'true');
+                    document.body.appendChild(iframe);
+                    const w = iframe.contentWindow;
+                    const doc = w.document;
+                    doc.open();
+                    doc.write(html);
+                    doc.close();
+                    // wait for images in iframe
+                    try {
+                        const imgs = Array.from(doc.images || []);
+                        if (imgs.length > 0) {
+                            await new Promise((resolve) => {
+                                let loaded = 0;
+                                const onDone = () => { loaded++; if (loaded >= imgs.length) resolve(true); };
+                                imgs.forEach(img => {
+                                    if (img.complete) { onDone(); return; }
+                                    img.addEventListener('load', onDone);
+                                    img.addEventListener('error', onDone);
+                                });
+                                setTimeout(() => resolve(true), 1500);
+                            });
+                        }
+                    } catch (e) { /* ignore */ }
+                    try {
+                        // Use iframe.print fallback in browser
+                        _autoLog('lightbox.print shim: calling iframe.print()');
+                        w.focus && w.focus();
+                        w.print && w.print();
+                    } catch (err) { _autoLog('lightbox.print shim: print() failed', err); }
+                    // cleanup after short delay
+                    setTimeout(() => { try { document.body.removeChild(iframe); } catch(e){} }, 800);
+                } catch (e) { _autoLog('lightbox.print shim failed', e); }
+            })();
+        };
+        _autoLog('Installed lightbox.print shim');
+    }
+} catch (e) { console.warn('Could not install lightbox.print shim', e); }
+
 window.app = app;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1499,7 +2129,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearPinpad();
                     const pinInputs = document.querySelectorAll('.pin-digit');
                     pinInputs.forEach(inp => { inp.value = ''; });
-                    try { app.showScreen('welcomeScreen'); } catch (e) {}
+                    try { app.goToWelcome(); } catch (e) {}
                 } else {
                     // Jinak pouze vymazat pinpad
                     clearPinpad();
@@ -1510,7 +2140,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearPinpad();
                     const pinInputs = document.querySelectorAll('.pin-digit');
                     pinInputs.forEach(inp => { inp.value = ''; });
-                    try { app.showScreen('welcomeScreen'); } catch (e) {}
+                    try { app.goToWelcome(); } catch (e) {}
                 } else if (pinpadValue.length === 4) {
                     submitPinpad();
                 }
@@ -1596,6 +2226,45 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     } catch (err) { console.warn('autoPrint toggle wiring failed', err); }
+
+    // Hotfolder toggle wiring
+    try {
+        const hfBtn = document.getElementById('hotfolderToggle');
+        if (hfBtn) {
+            const updateHfBtn = () => {
+                const enabled = app.isHotfolderEnabled();
+                hfBtn.textContent = enabled ? 'Použít hotfolder ON' : 'Použít hotfolder OFF';
+                if (enabled) hfBtn.classList.remove('off'); else hfBtn.classList.add('off');
+            };
+            updateHfBtn();
+            hfBtn.addEventListener('click', async () => {
+                const newVal = !app.isHotfolderEnabled();
+                app.setHotfolderEnabled(newVal);
+                updateHfBtn();
+            });
+        }
+    } catch (err) { console.warn('hotfolder toggle wiring failed', err); }
+
+    // Simulate native print toggle wiring (for local debugging)
+    try {
+        const simBtn = document.getElementById('simulatePrintToggle');
+        if (simBtn) {
+            const updateSimBtn = () => {
+                const enabled = localStorage.getItem('simulateNativePrint') === '1';
+                simBtn.textContent = enabled ? 'Simulate Print ON' : 'Simulate Print OFF';
+                if (enabled) simBtn.classList.remove('off'); else simBtn.classList.add('off');
+            };
+            updateSimBtn();
+            simBtn.addEventListener('click', () => {
+                const curr = localStorage.getItem('simulateNativePrint') === '1';
+                localStorage.setItem('simulateNativePrint', curr ? '0' : '1');
+                updateSimBtn();
+            });
+        }
+    } catch (err) { console.warn('simulatePrint toggle wiring failed', err); }
+
+// debug: log lightbox presence (browser-only)
+try { console.log('Running in browser environment. window.lightbox present=', !!window.lightbox); } catch(e) {}
 
     // PIN input navigace
     const pinInputs = document.querySelectorAll('.pin-digit');
@@ -1707,6 +2376,102 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    // Image PIN handlers (for pinImageScreen)
+    const imageGridContainer = document.getElementById('imagePinGrid');
+    const imageClear = document.getElementById('imagePinClear');
+    const imageCancel = document.getElementById('imagePinCancel');
+    if (imageGridContainer) {
+        imageGridContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.pinpad-btn');
+            if (!btn) return;
+            const digit = btn.dataset.digit;
+            if (!digit) return;
+            // Add to image buffer
+            try { app.playDTMF(digit); } catch (err) {}
+            app._imagePinBuffer = (app._imagePinBuffer || '') + digit;
+            // Update dots
+            const dots = document.getElementById('imagePinDots');
+            if (dots) {
+                const ds = dots.querySelectorAll('.pin-digit');
+                for (let i = 0; i < ds.length; i++) {
+                    ds[i].textContent = i < app._imagePinBuffer.length ? '•' : ' ';
+                }
+            }
+            // When 4 pressed, verify against expected numeric PIN mapping
+            if ((app._imagePinBuffer || '').length === 4) {
+                // Compare sequences as digits: we interpret image presses as digits 1-9; map these digits to numeric PIN digits
+                // The numeric PIN expected is in app._expectedNumericPin (e.g. '2789')
+                const expected = app._expectedNumericPin || '';
+                // We need to translate image-digit sequence into numeric digits by mapping image choice -> numeric digit position
+                // For simplicity: the image-digit '1' maps to numeric digit '1' etc. So we compare sequences directly.
+                
+                if (app._directImagePinLookup) {
+                    // First, check for special PINs (behave same as numeric entry) or existing child
+                    const buf = app._imagePinBuffer;
+                    const data = app.loadData();
+                    const child = data.children.find(c => c.pin === buf);
+                    const specialHandled = (buf === '9989' || buf === '7897' || buf === '1231' || buf === '4564');
+                    if (specialHandled || child) {
+                        
+                        // populate numeric inputs and call verifyPin to reuse logic
+                        const pinInputs = document.querySelectorAll('.pin-digit');
+                        buf.split('').forEach((v, idx) => { if (pinInputs[idx]) pinInputs[idx].value = v; });
+                        app._expectedNumericPin = null;
+                        app._imagePinBuffer = '';
+                        app._directImagePinLookup = false;
+                        // mark skip flag to avoid redirect loop if needed
+                        app._skipImageRedirect = true;
+                        setTimeout(() => { app.verifyPin(); }, 100);
+                        return;
+                    }
+                    // no special or child found -> accept as temporary child
+                    
+                    app.currentChild = { pin: app._imagePinBuffer, name: '', text: '' };
+                    app._directImagePinLookup = false;
+                    app._imagePinBuffer = '';
+                    app.showScreen('wheelScreen');
+                    setTimeout(() => { app.showLetter(); }, 1200);
+                    return;
+                }
+                if (app._imagePinBuffer === expected) {
+                    // success: set the numeric inputs accordingly and continue
+                    
+                    const pinInputs = document.querySelectorAll('.pin-digit');
+                    app._imagePinBuffer.split('').forEach((v, idx) => { if (pinInputs[idx]) pinInputs[idx].value = v; });
+                    app._expectedNumericPin = null;
+                    app._imagePinBuffer = '';
+                    // set flag to skip redirect back to image screen
+                    app._skipImageRedirect = true;
+                    app.showScreen('pinScreen');
+                    setTimeout(() => { app.verifyPin(); }, 150);
+                } else {
+                    
+                    // failure: animate and reset
+                    try { app.playIllegal(); } catch (e) {}
+                    app._imagePinBuffer = '';
+                    const ds = document.getElementById('imagePinDots');
+                    if (ds) ds.querySelectorAll('.pin-digit').forEach(d => d.textContent = ' ');
+                    // if direct lookup, also clear the direct flag
+                    app._directImagePinLookup = false;
+                }
+            }
+        });
+    }
+    if (imageClear) {
+        imageClear.addEventListener('click', (e) => {
+            app._imagePinBuffer = '';
+            const ds = document.getElementById('imagePinDots');
+            if (ds) ds.querySelectorAll('.pin-digit').forEach(d => d.textContent = ' ');
+        });
+    }
+    if (imageCancel) {
+        imageCancel.addEventListener('click', (e) => {
+            app._imagePinBuffer = '';
+            app._expectedNumericPin = null;
+            app.goToWelcome();
+        });
+    }
     // Import přes soubor pouze pokud existuje fileInput
     const fileInput = document.getElementById('fileInput');
     if (fileInput) {
@@ -1736,6 +2501,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('keydown', (e) => {
+        // If welcome screen is active and Enter pressed, act like START
+        const activeScreen = document.querySelector('.screen.active');
+        if (e.key === 'Enter' && activeScreen && activeScreen.id === 'welcomeScreen') {
+            e.preventDefault();
+            try { app.goToPin(); } catch (err) {}
+            return;
+        }
         // Mezerník - tajný kód
         if (e.key === ' ' && !e.ctrlKey && !e.altKey && !e.metaKey) {
             const activeScreen = document.querySelector('.screen.active');
@@ -1817,3 +2589,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Developer helper: debug printers and lightbox presence
+window.devPrintDebug = async function devPrintDebug() {
+    try {
+        _autoLog('devPrintDebug: window.lightbox present=', !!window.lightbox);
+        if (window.lightbox) _autoLog('devPrintDebug: window.lightbox keys=', Object.keys(window.lightbox));
+    } catch(e) { console.warn('devPrintDebug lightbox check failed', e); }
+    try {
+        _autoLog('devPrintDebug: environment check complete (browser-only diagnostics)');
+    } catch (e) { _autoLog('devPrintDebug: environment check threw', e); }
+};
