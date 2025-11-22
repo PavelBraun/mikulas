@@ -372,6 +372,7 @@ h1 {
 #printPreview .print-preview-content { position: relative; width: 100%; margin:auto; height: auto; display:flex; align-items:flex-start; justify-content:center; }
 /* Show preview slightly narrower than 80mm to avoid right-edge cutoff */
 #printPreview .print-preview-bg {  background-color: #fff; width: 100%; height:auto; background-size: cover; background-position: center; display:flex; align-items:flex-start; justify-content:center; box-sizing:border-box; }
+#printPreview .print-preview-bg {  background-color: #fff; width: 100%; height:auto; background-size: cover; background-position: center; display:flex; align-items:flex-start; justify-content:center; box-sizing:border-box; }
 #printPreview .print-preview-bg .parchment { top: 0px; left: 0px; padding: 12px 8px; width: calc(100% - 20px); border-radius: 0px; height: auto !important; box-shadow: none !important; margin: 0 auto; }
 #printPreview .print-preview-bg .letter-text { font-family: cursive; font-weight: bolder; font-size: 1.6em; line-height: 1.4; color: #2c3e50; }
 /* Ensure header/footer images in preview keep aspect ratio and fill width */
@@ -385,6 +386,19 @@ h1 {
     left: 50%;
     z-index: 1000;
     transform: translateX(-50%);
+}
+
+/* Strong print layout overrides to ensure receipt prints correctly */
+@media print {
+    html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+    /* Force parchment to be positioned for print (no offsets) */
+    .parchment { position: static !important; top: 0 !important; left: 0 !important; margin: 0 !important; padding: 3mm 6mm !important; width: 80mm !important; box-sizing: border-box !important; height: auto !important; overflow: visible !important; font-size: 12px !important; line-height: 1.25 !important; }
+    /* Make letter text readable on receipt */
+    .parchment .letter-text, #letterText { font-size: 12px !important; line-height: 1.25 !important; }
+    /* Ensure preview wrapper fits 80mm */
+    #printPreview, #printPreview .print-preview-bg { width: 80mm !important; max-width: 80mm !important; left: 0 !important; right: 0 !important; margin: 0 auto !important; }
+    /* Hide UI controls on print */
+    .no-print, .btn-large, .btn-small, button, .help-btn, .modal, .pinpad-btn, .admin-screen, .screen:not(#letterScreen) { display: none !important; }
 }
 
 /* Strong print layout overrides to ensure receipt prints correctly */

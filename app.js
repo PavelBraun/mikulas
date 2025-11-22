@@ -577,12 +577,19 @@ const app = {
                         /* Print on 80mm receipt paper */
                         @page {margin: 0; }
                         html,body{margin:0;padding:0;}
+                        @page {margin: 0; }
+                        html,body{margin:0;padding:0;}
                         body{zoom:1; transform:none; -webkit-transform:none}
                         .print-container{display:flex;align-items:flex-start;justify-content:center;padding:0;margin:0;background:#fff;}
                         /* wrapper is slightly narrower than full 80mm to avoid right-edge cutoff */
                         .print-wrapper{width:90%;margin:0;padding:0;overflow:hidden;} 
                         .print-header, .print-footer{width:100%;margin:0;padding:0;overflow:hidden;} 
+                        .print-wrapper{width:90%;margin:0;padding:0;overflow:hidden;} 
+                        .print-header, .print-footer{width:100%;margin:0;padding:0;overflow:hidden;} 
                         /* header/footer images fill the wrapper exactly and preserve aspect ratio */
+                        .print-header img, .print-footer img{display:block;width:95%;height:auto;margin:0;padding:0;border:0;}
+                        .print-letter{width:100%;margin:0;padding:20px 8px 20px 12px;}
+                        img{display:block;width:95%;}
                         .print-header img, .print-footer img{display:block;width:95%;height:auto;margin:0;padding:0;border:0;}
                         .print-letter{width:100%;margin:0;padding:20px 8px 20px 12px;}
                         img{display:block;width:95%;}
@@ -853,6 +860,11 @@ const app = {
         this.isPrinting = true;
         // Called when user finishes viewing the letter. Prepare print window and auto-print, then continue.
         try {
+            // If auto-print disabled, skip printing and go to goodbye immediately
+            if (!this.isAutoPrintEnabled()) {
+                try { this.goToGoodbye(); } catch(e){}
+                return;
+            }
             // If auto-print disabled, skip printing and go to goodbye immediately
             if (!this.isAutoPrintEnabled()) {
                 try { this.goToGoodbye(); } catch(e){}
@@ -1458,6 +1470,7 @@ const app = {
         // Odsazení třetího řádku pod nadpisem
         const lines = fullText.split('\n');
         if (lines.length > 2) {
+            lines[2] = '<span style="text-indent:2ch;display:inline-block;width:calc(100% - 3ch);">' + lines[2] + '</span>';
             lines[2] = '<span style="text-indent:2ch;display:inline-block;width:calc(100% - 3ch);">' + lines[2] + '</span>';
         }
 
